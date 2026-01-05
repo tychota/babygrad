@@ -1,5 +1,3 @@
-import numbers
-
 import numpy as np
 
 NDArray = np.ndarray
@@ -18,18 +16,20 @@ class Tensor:
         Design decision: requires_grad defaults to True (unlike PyTorch)
          (Will change later to false, when introducing Parameter)
         """
+        if isinstance(data, Tensor):
+            if dtype is None:
+                dtype = data.dtype
+            self.data = data.numpy().astype(dtype)
+        elif isinstance(data, np.ndarray):
+            self.data = data.astype(dtype if dtype is not None else data.dtype)
+        else:
+            self.data = np.array(data, dtype=dtype if dtype is not None else "float32")
 
+        self.grad = None
         self.requires_grad = requires_grad
         self._op = None
         self._inputs = []
-        self._device = device
-
-        if isinstance(data, Tensor):
-            self.data = data.data
-        elif isinstance(data, NDArray):
-            self.data = data
-        elif isinstance(data, list) or isinstance(data, numbers.Number):
-            self.data = np.asarray(data)
+        self._device = device if device else "cpu"
 
     def __repr__(self):
         """
@@ -54,6 +54,20 @@ class Tensor:
     def backward(self, out_grad=None):
         # we will do this in next chapter !.
         pass
+
+    def numpy(self):
+        """
+        Return the data as a NumPy array (detached from the autograd graph).
+        This returns a copy, so modifying the result will not affect
+        the tensor's data.
+        Examples:
+            >>> x = Tensor([1, 2, 3])
+            >>> y = x + 1   # y is still a Tensor, part of the graph
+            >>> z = x.numpy() + 1  # z is a NumPy array, not part of the graph
+        Returns:
+            np.ndarray: A copy of the tensor's data as a NumPy array.
+        """
+        return self.data.copy()
 
     @property
     def shape(self):
