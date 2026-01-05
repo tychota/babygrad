@@ -53,3 +53,4 @@ class Tensor:
 
     def backward(self, out_grad=None):
         # we will do this in next chapter !.
+        pass
