@@ -1,3 +1,5 @@
+import numbers
+
 import numpy as np
 
 NDArray = np.ndarray
@@ -17,12 +19,17 @@ class Tensor:
         Design decision: requires_grad defaults to True (unlike PyTorch)
          (Will change later to false, when introducing Parameter)
         """
-        # if data isinstance of Tensor
 
-        # if data instance of np.ndarray 
+        self.requires_grad = requires_grad
+        self._op = None
+        self._inputs = []
 
-        # if data instance of List/Scalar 
-        #Your solution here.
+        if isinstance(data, Tensor):
+            self.data = data.data
+        elif isinstance(data, NDArray):
+            self.data = data
+        elif isinstance(data, list) or isinstance(data, numbers.Number):
+            self.data = np.asarray(data)
     
     def __repr__(self):
         """
