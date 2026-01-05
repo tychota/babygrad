@@ -76,6 +76,16 @@ class Tensor:
         return self.data.size
 
     @property
+    def op(self):
+        """What Math operation created this Tensor."""
+        return self._op
+
+    @property
+    def inputs(self):
+        """What inputs created this Tensor."""
+        return self._inputs
+
+    @property
     def device(self):
         """Device where tensor lives."""
         return self._device
