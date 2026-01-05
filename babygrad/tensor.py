@@ -69,6 +69,20 @@ class Tensor:
         """
         return self.data.copy()
 
+    def detach(self):
+        """
+        Creates a new Tensor with same data but no gradient tracking.
+        Useful when you want to use values without building
+        computation graph.
+        Returns:
+            Tensor: New tensor with requires_grad=False
+        Example:
+            >>> x = Tensor([1, 2, 3], requires_grad=True)
+            >>> y = x.detach()  # y doesn't track gradients
+            >>> z = y * 2       # This operation won't be in graph
+        """
+        return Tensor(self.data, requires_grad=False)
+
     @property
     def shape(self):
         """Shape of the tensor."""
