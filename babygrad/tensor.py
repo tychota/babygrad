@@ -1,4 +1,9 @@
+from typing import TYPE_CHECKING, List, Optional
+
 import numpy as np
+
+if TYPE_CHECKING:
+    from .ops import Function
 
 NDArray = np.ndarray
 
@@ -25,10 +30,10 @@ class Tensor:
         else:
             self.data = np.array(data, dtype=dtype if dtype is not None else "float32")
 
-        self.grad = None
+        self.grad: Optional[NDArray] = None
         self.requires_grad = requires_grad
-        self._op = None
-        self._inputs = []
+        self._op: Optional["Function"] = None
+        self._inputs: List["Tensor"] = []
         self._device = device if device else "cpu"
 
     def __repr__(self):
