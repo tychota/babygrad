@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -157,3 +157,156 @@ class TrueDiv(Function):
 
 def truediv(a, b):
     return TrueDiv()(a, b)
+
+class Sum(Function):
+    def forward(self, a: NDArray, axis: Tuple[int] = None, keepdims: bool = False):
+        self.axis = axis
+        self.keepdims = keepdims
+        return np.sum(a, axis=axis, keepdims=keepdims)
+
+    def backward(self, out_grad, node):
+        a = node._inputs[0]
+        grad = out_grad
+        if not self.keepdims:
+            shape = list(a.data.shape)
+            if self.axis is None:
+                shape = [1] * len(shape)
+            else:
+                for ax in sorted(self.axis):
+                    shape[ax] = 1
+            grad = grad.reshape(shape)
+
+        return np.ones_like(a.data) * grad
+
+class Reshape(Function):
+    def __init__(self, shape):
+        self.shape = shape
+
+    def forward(self, a):
+        return np.reshape(a, self.shape)
+
+    def backward(self, out_grad, node):
+        a = node._inputs[0]
+        return np.reshape(out_grad, a.data.shape)
+
+def reshape(a, shape):
+    return Reshape(shape)(a)
+
+class Transpose(Function):
+    def __init__(self, axes=None):
+        self.axes = axes
+
+    def forward(self, a):
+        if self.axes is None:
+            return np.swapaxes(a, -1, -2)
+
+        ndim = a.ndim
+        #handling -ve axes
+        axes = tuple(ax if ax >= 0 else ndim + ax for ax in self.axes)
+        if len(axes) == 2:
+            full_axes = list(range(ndim))
+            i, j = axes
+            full_axes[i], full_axes[j] = full_axes[j], full_axes[i]
+            self.full_axes = tuple(full_axes)
+        else:
+            self.full_axes = axes
+
+        return np.transpose(a, self.full_axes)
+
+    def backward(self, out_grad, node):
+        if self.axes is None:
+            return transpose(out_grad)
+        else:
+            inverse_axes = np.argsort(self.axes)
+            return transpose(out_grad, tuple(inverse_axes))
+
+def transpose(a, axes=None):
+    return Transpose(axes)(a)
+
+class Summation(Function):
+    def __init__(self, axes: Optional[tuple] = None):
+        self.axes = axes
+
+    def forward(self, a):
+        return np.sum(a, axis=self.axes)
+
+    def backward(self, out_grad, node):
+        a = node._inputs[0]
+
+        original_shape = a.shape
+
+        if self.axes is None:
+            intermediate_shape = (1,) * len(original_shape)
+        else:
+            axes = self.axes if isinstance(self.axes, (list, tuple)) else (self.axes,)
+            axes= [ax if ax >= 0 else ax + len(original_shape) for ax in axes]
+            intermediate_shape = list(out_grad.shape)
+
+            #inserting 1's where the axis was vanished.
+            for ax in sorted(axes):
+                intermediate_shape.insert(ax, 1)
+        #reshape
+        reshaped_grad = reshape(out_grad, tuple(intermediate_shape))
+        ones = np.ones(original_shape)
+        ones = Tensor(ones)
+        #broadcast or multiply by ones
+        return reshaped_grad * ones
+
+def summation(a, axes=None):
+    return Summation(axes)(a)
+
+class BroadcastTo(Function):
+    def __init__(self, shape):
+        self.shape = shape
+
+    def forward(self, a):
+        return np.broadcast_to(a, self.shape)
+
+    def backward(self, out_grad, node):
+        a = node._inputs[0]
+        original_shape = a.shape
+        converted_shape = out_grad.shape
+
+        # Un-prepending
+        changed_shape = len(converted_shape) - len(original_shape)
+        grad =  out_grad
+        for _ in range(changed_shape):
+            grad = summation(grad, axes=0)
+
+        # Un-stretching
+        for i, (orig_dim, conv_dim) in enumerate(zip(original_shape, grad.shape)):
+            if orig_dim == 1 and conv_dim > 1:
+                grad = summation(grad, axes=i)
+                new_shape = list(grad.shape)
+                new_shape.insert(i, 1)
+                grad = reshape(grad, tuple(new_shape))
+
+        return grad
+
+def broadcast_to(a, shape):
+    return BroadcastTo(shape)(a)
+
+class MatMul(Function):
+    def forward(self, a, b):
+        return np.matmul(a, b)
+
+    def backward(self, out_grad, node):
+        a, b = node._inputs
+
+        if len(out_grad.shape) == 0:
+            out_grad = out_grad.broadcast_to(node.shape)
+
+        grad_a = matmul(out_grad, transpose(b, axes=(-1, -2)))
+        grad_b = matmul(transpose(a, axes=(-1, -2)), out_grad)
+
+        while len(grad_a.shape) > len(a.shape):
+            grad_a = summation(grad_a, axes=0)
+        while len(grad_b.shape) > len(b.shape):
+            grad_b = summation(grad_b, axes=0)
+
+        grad_a = grad_a.reshape(a.shape)
+        grad_b = grad_b.reshape(b.shape)
+        return grad_a, grad_b
+
+def matmul(a, b):
+    return MatMul()(a, b)

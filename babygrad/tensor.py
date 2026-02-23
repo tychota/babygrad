@@ -244,3 +244,14 @@ class Tensor:
         if not isinstance(other, Tensor):
             other = Tensor(other)
         return TrueDiv()(other, self)
+
+    def __matmul__(self, other):
+        """Matrix multiplication: a @ b"""
+        from .ops import MatMul
+        if not isinstance(other, Tensor):
+            other = Tensor(other)
+        return MatMul()(self, other)
+
+    def matmul(self, other):
+        """Explicit method for matrix multiplication: a.matmul(b)"""
+        return self.__matmul__(other)
