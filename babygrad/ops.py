@@ -113,3 +113,47 @@ class ExpBase(Function):
 
 def exp_base(base: float, a):
     return ExpBase(base)(a)
+
+
+class MulScalar(Function):
+    """Multiplies a tensor by a scalar: a * scalar."""
+    def __init__(self, scalar: float):
+        self.scalar = scalar
+
+    def forward(self, a: NDArray):
+        return a * self.scalar
+
+    def backward(self, out_grad, node):
+        return out_grad * self.scalar
+
+def mul_scalar(a, scalar: float):
+    return MulScalar(scalar)(a)
+
+
+class DivScalar(Function):
+    """Divides a tensor by a scalar: a / scalar."""
+    def __init__(self, scalar: float):
+        self.scalar = scalar
+
+    def forward(self, a: NDArray):
+        return a / self.scalar
+
+    def backward(self, out_grad, node):
+        return out_grad / self.scalar
+
+def div_scalar(a, scalar: float):
+    return DivScalar(scalar)(a)
+
+
+class TrueDiv(Function):
+    def forward(self, a: NDArray, b: NDArray):
+        return a / b
+
+    def backward(self, out_grad, node):
+        a, b = node._inputs
+        grad_a = out_grad / b.data
+        grad_b = -out_grad * a.data / (b.data ** 2)
+        return grad_a, grad_b
+
+def truediv(a, b):
+    return TrueDiv()(a, b)

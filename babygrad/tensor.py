@@ -188,9 +188,12 @@ class Tensor:
 
     def __mul__(self, other):
         """Multiplication: a * b"""
-        from .ops import Mul
         if not isinstance(other, Tensor):
+            if isinstance(other, (int, float)):
+                from .ops import MulScalar
+                return MulScalar(float(other))(self)
             other = Tensor(other)
+        from .ops import Mul
         return Mul()(self, other)
 
     def __rmul__(self, other):
@@ -224,3 +227,20 @@ class Tensor:
         """Right power: base ** a"""
         from .ops import ExpBase
         return ExpBase(base)(self)
+
+    def __truediv__(self, other):
+        """Division: a / b"""
+        if not isinstance(other, Tensor):
+            if isinstance(other, (int, float)):
+                from .ops import DivScalar
+                return DivScalar(float(other))(self)
+            other = Tensor(other)
+        from .ops import TrueDiv
+        return TrueDiv()(self, other)
+
+    def __rtruediv__(self, other):
+        """Right division: 5 / tensor"""
+        from .ops import TrueDiv
+        if not isinstance(other, Tensor):
+            other = Tensor(other)
+        return TrueDiv()(other, self)
