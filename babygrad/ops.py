@@ -66,3 +66,50 @@ class Mul(Function):
 
 def mul(a, b):
     return Mul()(a, b)
+
+
+class Pow(Function):
+    def __init__(self, exponent: float):
+        self.exponent = exponent
+
+    def forward(self, a: NDArray):
+        return a ** self.exponent
+
+    def backward(self, out_grad, node):
+        a = node._inputs[0]
+        return out_grad * self.exponent * (a.data ** (self.exponent - 1))
+
+def pow(a, exponent: float):
+    return Pow(exponent)(a)
+
+
+class PowerScalar(Function):
+    """Raises a tensor to a scalar power: a ** scalar."""
+    def __init__(self, scalar: float):
+        self.scalar = scalar
+
+    def forward(self, a: NDArray):
+        return a ** self.scalar
+
+    def backward(self, out_grad, node):
+        a = node._inputs[0]
+        return out_grad * self.scalar * (a.data ** (self.scalar - 1))
+
+def power_scalar(a, scalar: float):
+    return PowerScalar(scalar)(a)
+
+
+class ExpBase(Function):
+    """Computes base ** a (scalar base raised to tensor power)."""
+    def __init__(self, base: float):
+        self.base = base
+
+    def forward(self, a: NDArray):
+        return self.base ** a
+
+    def backward(self, out_grad, node):
+        a = node._inputs[0]
+        return out_grad * (self.base ** a.data) * np.log(self.base)
+
+def exp_base(base: float, a):
+    return ExpBase(base)(a)

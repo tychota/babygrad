@@ -214,3 +214,13 @@ class Tensor:
         if not isinstance(other, Tensor):
             other = Tensor(other)
         return Sub()(other, self)
+
+    def __pow__(self, exponent: float):
+        """Power: a ** exponent"""
+        from .ops import PowerScalar
+        return PowerScalar(float(exponent))(self)
+
+    def __rpow__(self, base: float):
+        """Right power: base ** a"""
+        from .ops import ExpBase
+        return ExpBase(base)(self)
