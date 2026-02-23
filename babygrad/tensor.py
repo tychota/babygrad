@@ -7,6 +7,10 @@ if TYPE_CHECKING:
 
 NDArray = np.ndarray
 
+def _ensure_tensor(val):
+    return val if isinstance(val, Tensor) else Tensor(val,
+     requires_grad=False)
+
 
 class Tensor:
     def __init__(self, data, *, device=None, dtype="float32", requires_grad=True):
@@ -57,8 +61,56 @@ class Tensor:
         return str(self.data)
 
     def backward(self, out_grad=None):
-        # we will do this in next chapter !.
-        pass
+        if not self.requires_grad:
+            raise RuntimeError("Cannot call backward on a tensor that does not require gradients.")
+
+        # Build a family tree of tensors in topological order
+        topo_order = []
+        visited = set()
+
+        def build_topo(tensor):
+            if tensor not in visited:
+                visited.add(tensor)
+                for parent in tensor._inputs:
+                    build_topo(parent)
+                topo_order.append(tensor)
+        build_topo(self)
+
+        # Initialize the ledger
+        grads = {}
+        if out_grad is None:
+            # The "output" gradient: dL/dL = 1
+            grads[id(self)] = Tensor(np.ones_like(self.data))
+        else:
+            grads[id(self)] = _ensure_tensor(out_grad)
+
+        # Walk the Graph Backwards
+        for node in reversed(topo_order):
+            out_grad = grads.get(id(node))
+            if out_grad is None:
+                continue
+
+            # Store the final result in the .grad attribute
+            if node.grad is None:
+                node.grad = np.array(out_grad.data, copy=True)
+            else:
+                node.grad += out_grad.data
+
+            # Propagate to Parents
+            if node._op:
+                input_grads = node._op.backward(out_grad, node)
+                if not isinstance(input_grads, tuple):
+                    input_grads = (input_grads,)
+
+                for i, parent in enumerate(node._inputs):
+                    if parent.requires_grad:
+                        parent_id = id(parent)
+                        if parent_id not in grads:
+                            # First time seeing this parent
+                            grads[parent_id] = input_grads[i]
+                        else:
+                            #  Sum the gradients!
+                            grads[parent_id] = grads[parent_id] + input_grads[i]
 
     def numpy(self):
         """
