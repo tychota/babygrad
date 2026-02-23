@@ -174,3 +174,43 @@ class Tensor:
     def device(self):
         """Device where tensor lives."""
         return self._device
+
+    def __add__(self, other):
+        """Addition: a + b"""
+        from .ops import Add
+        if not isinstance(other, Tensor):
+            other = Tensor(other)
+        return Add()(self, other)
+
+    def __radd__(self, other):
+        """Right addition: 5 + tensor"""
+        return self.__add__(other)
+
+    def __mul__(self, other):
+        """Multiplication: a * b"""
+        from .ops import Mul
+        if not isinstance(other, Tensor):
+            other = Tensor(other)
+        return Mul()(self, other)
+
+    def __rmul__(self, other):
+        """Right multiplication: 5 * tensor"""
+        return self.__mul__(other)
+
+    def __neg__(self):
+        """Negation: -a"""
+        return self * (-1)
+
+    def __sub__(self, other):
+        """Subtraction: a - b"""
+        from .ops import Sub
+        if not isinstance(other, Tensor):
+            other = Tensor(other)
+        return Sub()(self, other)
+
+    def __rsub__(self, other):
+        """Right subtraction: 5 - tensor"""
+        from .ops import Sub
+        if not isinstance(other, Tensor):
+            other = Tensor(other)
+        return Sub()(other, self)

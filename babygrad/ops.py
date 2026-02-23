@@ -45,6 +45,16 @@ def add(a, b):
     return Add()(a, b)  # `__call__`
 
 
+class Sub(Function):
+    def forward(self, a, b):
+        return a - b
+
+    def backward(self, out_grad, node):
+        return out_grad, -out_grad
+
+def sub(a, b):
+    return Sub()(a, b)
+
 class Mul(Function):
     def forward(self, a, b):
         return a * b
