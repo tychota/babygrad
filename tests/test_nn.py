@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from babygrad.tensor import Tensor
-from babygrad.nn import Parameter, Module, ReLU, Tanh, Sigmoid, Flatten
+from babygrad.nn import Parameter, Module, ReLU, Tanh, Sigmoid, Flatten, Linear
 
 
 class TestParameter:
@@ -335,3 +335,50 @@ class TestFlattenLayer:
 
     def test_flatten_no_parameters(self):
         assert len(Flatten().parameters()) == 0
+
+
+# ── Linear layer ────────────────────────────────────────────────────
+
+
+class TestLinearLayer:
+    def test_linear_output_shape(self):
+        layer = Linear(3, 5)
+        x = Tensor(np.ones((2, 3), dtype=np.float32))
+        y = layer(x)
+        assert y.shape == (2, 5)
+
+    def test_linear_has_weight_and_bias_parameters(self):
+        layer = Linear(4, 3)
+        params = layer.parameters()
+        assert len(params) == 2
+        assert layer.weight.shape == (4, 3)
+        assert layer.bias.shape == (1, 3)
+
+    def test_linear_weight_is_parameter(self):
+        layer = Linear(4, 3)
+        assert isinstance(layer.weight, Parameter)
+        assert isinstance(layer.bias, Parameter)
+
+    def test_linear_no_bias(self):
+        layer = Linear(4, 3, bias=False)
+        params = layer.parameters()
+        assert len(params) == 1
+        assert layer.bias is None
+
+    def test_linear_no_bias_output_shape(self):
+        layer = Linear(3, 5, bias=False)
+        x = Tensor(np.ones((2, 3), dtype=np.float32))
+        y = layer(x)
+        assert y.shape == (2, 5)
+
+    def test_linear_forward_computes_xW_plus_b(self):
+        """Verify y = x @ W + b with known values."""
+        layer = Linear(2, 3)
+        # Set known weights
+        layer.weight = Parameter(Tensor(np.ones((2, 3), dtype=np.float32)))
+        layer.bias = Parameter(Tensor(np.array([0.1, 0.2, 0.3], dtype=np.float32)))
+        x = Tensor(np.array([[1.0, 2.0]], dtype=np.float32))
+        y = layer(x)
+        # x @ W = [1,2] @ [[1,1,1],[1,1,1]] = [3,3,3]
+        # + bias = [3.1, 3.2, 3.3]
+        np.testing.assert_array_almost_equal(y.data, [[3.1, 3.2, 3.3]])

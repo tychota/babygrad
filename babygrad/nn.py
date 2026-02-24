@@ -126,3 +126,29 @@ class Flatten(Module):
         batch_size = x.shape[0]
         flat_dim = int(np.prod(x.shape[1:]))
         return x.reshape(batch_size, flat_dim)
+
+
+class Linear(Module):
+    """Applies a linear transformation: y = xW + b."""
+
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        bias: bool = True,
+        device: Any | None = None,
+        dtype: str = "float32",
+    ):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.weight = Parameter(Tensor.randn(in_features, out_features))
+        self.bias = None
+        if bias:
+            self.bias = Parameter(Tensor.zeros(1, out_features))
+
+    def forward(self, x: Tensor) -> Tensor:
+        out = x @ self.weight
+        if self.bias is not None:
+            out += self.bias.broadcast_to(out.shape)
+        return out
