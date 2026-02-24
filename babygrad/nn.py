@@ -220,3 +220,61 @@ class LayerNorm1d(Module):
         weight_broadcasted = ops.broadcast_to(weight_reshaped, x.shape)
         bias_broadcasted = ops.broadcast_to(bias_reshaped, x.shape)
         return weight_broadcasted * x_hat + bias_broadcasted
+
+
+class BatchNorm1d(Module):
+    """Applies Batch Normalization over the batch dimension."""
+
+    def __init__(self, dim: int, eps: float = 1e-5, momentum: float = 0.1,
+                 device: Any | None = None, dtype: str = "float32") -> None:
+        super().__init__()
+        self.dim = dim
+        self.eps = eps
+        self.momentum = momentum
+        self.weight = Parameter(Tensor.ones(dim, dtype=dtype))
+        self.bias = Parameter(Tensor.zeros(dim, dtype=dtype))
+        self.running_mean = Tensor.zeros(dim, dtype=dtype)
+        self.running_var = Tensor.ones(dim, dtype=dtype)
+
+    def forward(self, x: Tensor) -> Tensor:
+        if self.training:
+            # x.shape is (batch_size, dim)
+            batch_size = x.shape[0]
+            # (batch_size,dim) -> (dim,)
+            mean = ops.summation(x, axes=(0,)) / batch_size
+
+            # (bs,dim) - (bs,dim) -> (dim,)
+            var = ops.summation((x - ops.broadcast_to(ops.reshape(mean,
+                        (1, self.dim)), x.shape)) ** 2, axes=(0,)) / batch_size
+
+            self.running_mean.data = (1 - self.momentum) * \
+                            self.running_mean.data + self.momentum * mean.data
+
+            self.running_var.data = (1 - self.momentum) * \
+                            self.running_var.data + self.momentum * var.data
+
+            mean_to_use = mean
+            var_to_use = var
+        else:
+            mean_to_use = self.running_mean
+            var_to_use = self.running_var
+
+        # mean_to_use (dim,) -> (1,dim)
+        mean_reshaped = ops.reshape(mean_to_use, (1, self.dim))
+
+        # var_to_use (dim,) -> (1,dim)
+        var_reshaped = ops.reshape(var_to_use, (1, self.dim))
+
+        std = ops.sqrt(var_reshaped + self.eps)
+
+        # (bs,dim) - (bs,dim) / (bs,dim)
+        x_hat = (x - ops.broadcast_to(mean_reshaped, x.shape)) \
+                     / ops.broadcast_to(std, x.shape)
+
+        # weight/bias (dim,) -> (1,dim)
+        weight_reshaped = ops.reshape(self.weight, (1, self.dim))
+        bias_reshaped = ops.reshape(self.bias, (1, self.dim))
+
+        # (1,dim) -> (bs,dim)
+        return ops.broadcast_to(weight_reshaped, x.shape) * x_hat \
+                     + ops.broadcast_to(bias_reshaped, x.shape)

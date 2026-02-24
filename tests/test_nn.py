@@ -4,7 +4,7 @@ import pytest
 from babygrad.tensor import Tensor
 from babygrad.nn import (
     Parameter, Module, ReLU, Tanh, Sigmoid, Flatten, Linear,
-    Sequential, Residual, Dropout, LayerNorm1d,
+    Sequential, Residual, Dropout, LayerNorm1d, BatchNorm1d,
 )
 
 
@@ -560,3 +560,124 @@ class TestLayerNorm1d:
         loss.backward(Tensor(np.ones_like(loss.data)))
         assert x.grad is not None
         assert x.grad.shape == (2, 4)
+
+
+# ── BatchNorm1d ────────────────────────────────────────────────────
+
+
+class TestBatchNorm1d:
+    def test_output_shape(self):
+        bn = BatchNorm1d(4)
+        x = Tensor(np.random.randn(3, 4).astype(np.float32), requires_grad=True)
+        y = bn(x)
+        assert y.shape == (3, 4)
+
+    def test_normalizes_over_batch_dimension(self):
+        """In training mode, output has ~zero mean, ~unit var over batch dim."""
+        bn = BatchNorm1d(4)
+        x = Tensor(np.array([
+            [10.0, 20.0, 30.0, 40.0],
+            [12.0, 22.0, 32.0, 42.0],
+            [14.0, 24.0, 34.0, 44.0],
+            [16.0, 26.0, 36.0, 46.0],
+        ], dtype=np.float32), requires_grad=True)
+        y = bn(x)
+        # Each column (feature) should have mean ≈ 0 and std ≈ 1
+        for j in range(4):
+            col = y.data[:, j]
+            assert abs(np.mean(col)) < 1e-5
+            assert abs(np.std(col) - 1.0) < 0.15
+
+    def test_matches_formula(self):
+        """Verify against manual BatchNorm computation."""
+        bn = BatchNorm1d(2)
+        x_np = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], dtype=np.float32)
+        x = Tensor(x_np, requires_grad=True)
+        y = bn(x)
+
+        # Manual: mean over batch axis=0, var over batch axis=0
+        mean = np.mean(x_np, axis=0, keepdims=True)  # [[3, 4]]
+        var = np.var(x_np, axis=0, keepdims=True)      # [[2.667, 2.667]]
+        expected = (x_np - mean) / np.sqrt(var + 1e-5)
+        # weight=1, bias=0 by default
+        np.testing.assert_array_almost_equal(y.data, expected, decimal=4)
+
+    def test_has_weight_and_bias_parameters(self):
+        bn = BatchNorm1d(5)
+        params = bn.parameters()
+        assert len(params) == 2
+        assert isinstance(bn.weight, Parameter)
+        assert isinstance(bn.bias, Parameter)
+
+    def test_running_mean_and_var_are_not_parameters(self):
+        """running_mean and running_var are buffers, not Parameters."""
+        bn = BatchNorm1d(4)
+        params = bn.parameters()
+        assert len(params) == 2  # only weight and bias
+        assert not isinstance(bn.running_mean, Parameter)
+        assert not isinstance(bn.running_var, Parameter)
+
+    def test_weight_and_bias_shape(self):
+        bn = BatchNorm1d(6)
+        assert bn.weight.shape == (6,)
+        assert bn.bias.shape == (6,)
+
+    def test_weight_initialized_to_ones(self):
+        bn = BatchNorm1d(3)
+        np.testing.assert_array_equal(bn.weight.data, [1.0, 1.0, 1.0])
+
+    def test_bias_initialized_to_zeros(self):
+        bn = BatchNorm1d(3)
+        np.testing.assert_array_equal(bn.bias.data, [0.0, 0.0, 0.0])
+
+    def test_running_mean_initialized_to_zeros(self):
+        bn = BatchNorm1d(3)
+        np.testing.assert_array_equal(bn.running_mean.data, [0.0, 0.0, 0.0])
+
+    def test_running_var_initialized_to_ones(self):
+        bn = BatchNorm1d(3)
+        np.testing.assert_array_equal(bn.running_var.data, [1.0, 1.0, 1.0])
+
+    def test_running_stats_updated_during_training(self):
+        """running_mean and running_var update after forward in training mode."""
+        bn = BatchNorm1d(2, momentum=0.1)
+        x_np = np.array([[1.0, 10.0], [5.0, 20.0], [9.0, 30.0]], dtype=np.float32)
+        x = Tensor(x_np)
+        bn(x)
+        # After one batch: running_mean = (1-0.1)*0 + 0.1*batch_mean
+        batch_mean = np.mean(x_np, axis=0)
+        batch_var = np.var(x_np, axis=0)
+        expected_running_mean = 0.9 * 0.0 + 0.1 * batch_mean
+        expected_running_var = 0.9 * 1.0 + 0.1 * batch_var
+        np.testing.assert_array_almost_equal(bn.running_mean.data, expected_running_mean)
+        np.testing.assert_array_almost_equal(bn.running_var.data, expected_running_var)
+
+    def test_eval_uses_running_stats(self):
+        """In eval mode, uses running_mean/running_var instead of batch stats."""
+        bn = BatchNorm1d(2)
+        # Train on a batch to build up running stats
+        x_train = Tensor(np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], dtype=np.float32))
+        bn(x_train)
+        saved_mean = bn.running_mean.data.copy()
+        saved_var = bn.running_var.data.copy()
+
+        bn.eval()
+        # In eval, even a single sample should work (no batch stats needed)
+        x_eval = Tensor(np.array([[2.0, 3.0]], dtype=np.float32))
+        y = bn(x_eval)
+        # Manual: (x - running_mean) / sqrt(running_var + eps) * weight + bias
+        expected = (np.array([[2.0, 3.0]]) - saved_mean) / np.sqrt(saved_var + 1e-5)
+        np.testing.assert_array_almost_equal(y.data, expected, decimal=4)
+
+    def test_is_module(self):
+        assert isinstance(BatchNorm1d(4), Module)
+
+    def test_backward_runs(self):
+        """Verify gradients flow through BatchNorm."""
+        bn = BatchNorm1d(4)
+        x = Tensor(np.random.randn(3, 4).astype(np.float32), requires_grad=True)
+        y = bn(x)
+        loss = y * Tensor(np.ones_like(y.data))
+        loss.backward(Tensor(np.ones_like(loss.data)))
+        assert x.grad is not None
+        assert x.grad.shape == (3, 4)
