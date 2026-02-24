@@ -317,3 +317,76 @@ class TestPowerScalarBackward:
 
         expected = numerical_grad(lambda x: np.sum(x ** 3), x_np)
         np.testing.assert_array_almost_equal(a.grad, expected, decimal=4)
+
+
+# ── Activation ops (ReLU, Tanh, Sigmoid) ─────────────────────────────
+
+
+class TestReLUForward:
+    def test_relu_positive_unchanged(self):
+        from babygrad.ops import relu
+        a = Tensor([1.0, 2.0, 3.0])
+        c = relu(a)
+        np.testing.assert_array_almost_equal(c.data, [1.0, 2.0, 3.0])
+
+    def test_relu_negative_zeroed(self):
+        from babygrad.ops import relu
+        a = Tensor([-1.0, -2.0, -3.0])
+        c = relu(a)
+        np.testing.assert_array_almost_equal(c.data, [0.0, 0.0, 0.0])
+
+    def test_relu_mixed(self):
+        from babygrad.ops import relu
+        a = Tensor([-1.0, 0.0, 2.0])
+        c = relu(a)
+        np.testing.assert_array_almost_equal(c.data, [0.0, 0.0, 2.0])
+
+
+class TestReLUBackward:
+    def test_relu_gradient(self):
+        from babygrad.ops import relu
+        a = Tensor([-1.0, 0.0, 2.0, 3.0], requires_grad=True)
+        c = relu(a)
+        c.backward(Tensor([1.0, 1.0, 1.0, 1.0]))
+        # grad is 0 where input <= 0, 1 where input > 0
+        np.testing.assert_array_almost_equal(a.grad, [0.0, 0.0, 1.0, 1.0])
+
+
+class TestTanhForward:
+    def test_tanh_values(self):
+        from babygrad.ops import tanh
+        a = Tensor([0.0, 1.0, -1.0])
+        c = tanh(a)
+        np.testing.assert_array_almost_equal(c.data, np.tanh([0.0, 1.0, -1.0]), decimal=5)
+
+
+class TestTanhBackward:
+    def test_tanh_gradient(self):
+        from babygrad.ops import tanh
+        a = Tensor([0.0, 1.0, -1.0], requires_grad=True)
+        c = tanh(a)
+        c.backward(Tensor([1.0, 1.0, 1.0]))
+        # d(tanh)/da = 1 - tanh(a)^2
+        expected = 1.0 - np.tanh([0.0, 1.0, -1.0]) ** 2
+        np.testing.assert_array_almost_equal(a.grad, expected, decimal=5)
+
+
+class TestSigmoidForward:
+    def test_sigmoid_values(self):
+        from babygrad.ops import sigmoid
+        a = Tensor([0.0, 2.0, -2.0])
+        c = sigmoid(a)
+        expected = 1.0 / (1.0 + np.exp(-np.array([0.0, 2.0, -2.0])))
+        np.testing.assert_array_almost_equal(c.data, expected, decimal=5)
+
+
+class TestSigmoidBackward:
+    def test_sigmoid_gradient(self):
+        from babygrad.ops import sigmoid
+        a = Tensor([0.0, 2.0, -2.0], requires_grad=True)
+        c = sigmoid(a)
+        c.backward(Tensor([1.0, 1.0, 1.0]))
+        # d(sigmoid)/da = sigmoid(a) * (1 - sigmoid(a))
+        s = 1.0 / (1.0 + np.exp(-np.array([0.0, 2.0, -2.0])))
+        expected = s * (1.0 - s)
+        np.testing.assert_array_almost_equal(a.grad, expected, decimal=5)

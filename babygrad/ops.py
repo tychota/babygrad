@@ -310,3 +310,41 @@ class MatMul(Function):
 
 def matmul(a, b):
     return MatMul()(a, b)
+
+
+class ReLU(Function):
+    """Applies ReLU element-wise: max(0, x)."""
+    def forward(self, a: NDArray):
+        return np.maximum(a, 0)
+
+    def backward(self, out_grad, node):
+        a = node._inputs[0]
+        return out_grad * Tensor((a.data > 0).astype(a.dtype))
+
+def relu(a):
+    return ReLU()(a)
+
+
+class Tanh(Function):
+    """Applies tanh element-wise."""
+    def forward(self, a: NDArray):
+        return np.tanh(a)
+
+    def backward(self, out_grad, node):
+        return out_grad * Tensor(1.0 - np.tanh(node._inputs[0].data) ** 2)
+
+def tanh(a):
+    return Tanh()(a)
+
+
+class Sigmoid(Function):
+    """Applies sigmoid element-wise: 1 / (1 + exp(-x))."""
+    def forward(self, a: NDArray):
+        return 1.0 / (1.0 + np.exp(-a))
+
+    def backward(self, out_grad, node):
+        s = 1.0 / (1.0 + np.exp(-node._inputs[0].data))
+        return out_grad * Tensor(s * (1.0 - s))
+
+def sigmoid(a):
+    return Sigmoid()(a)
