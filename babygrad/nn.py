@@ -165,3 +165,14 @@ class Sequential(Module):
         for module in self.modules:
             x = module(x)
         return x
+
+
+class Residual(Module):
+    """Residual connection: f(x) + x."""
+
+    def __init__(self, fn: Module):
+        super().__init__()
+        self.fn = fn
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.fn(x) + x

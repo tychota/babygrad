@@ -4,7 +4,7 @@ import pytest
 from babygrad.tensor import Tensor
 from babygrad.nn import (
     Parameter, Module, ReLU, Tanh, Sigmoid, Flatten, Linear,
-    Sequential,
+    Sequential, Residual,
 )
 
 
@@ -410,3 +410,33 @@ class TestSequential:
         model = Sequential(Linear(3, 5), ReLU(), Linear(5, 2))
         model.eval()
         assert model.training is False
+
+
+# ── Residual ────────────────────────────────────────────────────────
+
+
+class TestResidual:
+    def test_residual_adds_input(self):
+        """Residual computes fn(x) + x."""
+
+        class DoubleIt(Module):
+            def forward(self, x):
+                return x * 2
+
+        res = Residual(DoubleIt())
+        x = Tensor([1.0, 2.0, 3.0])
+        y = res(x)
+        # fn(x) + x = 2x + x = 3x
+        np.testing.assert_array_almost_equal(y.data, [3.0, 6.0, 9.0])
+
+    def test_residual_is_module(self):
+        class Identity(Module):
+            def forward(self, x):
+                return x
+
+        assert isinstance(Residual(Identity()), Module)
+
+    def test_residual_finds_inner_parameters(self):
+        res = Residual(Linear(3, 3))
+        params = res.parameters()
+        assert len(params) == 2  # weight + bias from inner Linear
