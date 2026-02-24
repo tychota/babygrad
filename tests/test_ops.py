@@ -415,3 +415,40 @@ class TestSqrtBackward:
         # d(sqrt(a))/da = 1 / (2 * sqrt(a))
         expected = 1.0 / (2.0 * np.sqrt([1.0, 4.0, 9.0]))
         np.testing.assert_array_almost_equal(a.grad, expected, decimal=5)
+
+
+class TestLogSumExpForward:
+    def test_logsumexp_1d(self):
+        from babygrad.ops import logsumexp
+        a = Tensor([1.0, 2.0, 3.0])
+        c = logsumexp(a, axes=(0,))
+        expected = np.log(np.sum(np.exp([1.0, 2.0, 3.0])))
+        np.testing.assert_array_almost_equal(c.data, expected, decimal=5)
+
+    def test_logsumexp_2d_axis1(self):
+        from babygrad.ops import logsumexp
+        a_np = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32)
+        a = Tensor(a_np)
+        c = logsumexp(a, axes=(1,))
+        expected = np.log(np.sum(np.exp(a_np), axis=1))
+        np.testing.assert_array_almost_equal(c.data, expected, decimal=4)
+
+    def test_logsumexp_max_trick_stability(self):
+        """Should not overflow with large values thanks to max trick."""
+        from babygrad.ops import logsumexp
+        a = Tensor([1000.0, 1001.0, 1002.0])
+        c = logsumexp(a, axes=(0,))
+        expected = np.log(np.sum(np.exp(np.array([1000.0, 1001.0, 1002.0]) - 1002.0))) + 1002.0
+        np.testing.assert_array_almost_equal(c.data, expected, decimal=3)
+
+
+class TestLogSumExpBackward:
+    def test_logsumexp_gradient(self):
+        from babygrad.ops import logsumexp
+        a = Tensor([[1.0, 2.0, 3.0]], requires_grad=True)
+        c = logsumexp(a, axes=(1,))
+        c.backward(Tensor([1.0]))
+        # d(logsumexp)/dx_i = softmax(x)_i
+        exp_a = np.exp(np.array([[1.0, 2.0, 3.0]]))
+        expected = exp_a / np.sum(exp_a, axis=1, keepdims=True)
+        np.testing.assert_array_almost_equal(a.grad, expected, decimal=5)

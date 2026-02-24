@@ -281,3 +281,17 @@ class TestTensorInstanceMethods:
         t = Tensor([[1.0, 2.0], [3.0, 4.0]])
         s = t.sum()
         np.testing.assert_array_almost_equal(s.data, 10.0)
+
+    def test_one_hot(self):
+        labels = np.array([0, 2, 1])
+        oh = Tensor.one_hot(labels, 3)
+        expected = np.array([[1, 0, 0], [0, 0, 1], [0, 1, 0]], dtype=np.float32)
+        np.testing.assert_array_equal(oh.data, expected)
+
+    def test_one_hot_shape(self):
+        oh = Tensor.one_hot(np.array([1, 0]), 4)
+        assert oh.shape == (2, 4)
+
+    def test_one_hot_no_grad_by_default(self):
+        oh = Tensor.one_hot(np.array([0]), 3, requires_grad=False)
+        assert oh.requires_grad is False

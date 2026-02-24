@@ -361,3 +361,44 @@ class Sqrt(Function):
 
 def sqrt(a):
     return Sqrt()(a)
+
+
+class LogSumExp(Function):
+    """Computes log(sum(exp(x), axis)) with the max trick for stability."""
+    def __init__(self, axes=None):
+        self.axes = axes
+
+    def forward(self, a: NDArray):
+        self.max_val = np.max(a, axis=self.axes, keepdims=True)
+        shifted = a - self.max_val
+        self.exp_shifted = np.exp(shifted)
+        sum_exp = np.sum(self.exp_shifted, axis=self.axes, keepdims=True)
+        result = np.log(sum_exp) + self.max_val
+        # Remove the kept dims to match expected output shape
+        if self.axes is not None:
+            result = result.squeeze(axis=self.axes)
+        else:
+            result = result.squeeze()
+        return result
+
+    def backward(self, out_grad, node):
+        a = node._inputs[0]
+        # softmax = exp(a - max) / sum(exp(a - max))
+        max_val = np.max(a.data, axis=self.axes, keepdims=True)
+        shifted = a.data - max_val
+        exp_shifted = np.exp(shifted)
+        sum_exp = np.sum(exp_shifted, axis=self.axes, keepdims=True)
+        softmax = exp_shifted / sum_exp
+
+        # Expand out_grad to match input shape
+        if self.axes is not None:
+            grad = out_grad.data
+            for ax in sorted(self.axes if isinstance(self.axes, (list, tuple)) else (self.axes,)):
+                grad = np.expand_dims(grad, axis=ax)
+        else:
+            grad = out_grad.data.reshape([1] * len(a.data.shape))
+
+        return Tensor(grad * softmax)
+
+def logsumexp(a, axes=None):
+    return LogSumExp(axes)(a)

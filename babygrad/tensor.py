@@ -287,3 +287,11 @@ class Tensor:
     def randb(*shape, p=0.5, dtype="float32"):
         """Create a tensor of random binary values (0 or 1) with P(1) = p."""
         return Tensor(np.random.binomial(1, p, size=shape).astype(dtype))
+
+    @staticmethod
+    def one_hot(labels, num_classes, dtype="float32", requires_grad=False):
+        """Create a one-hot encoded tensor from integer labels."""
+        n = len(labels)
+        oh = np.zeros((n, num_classes), dtype=dtype)
+        oh[np.arange(n), labels] = 1.0
+        return Tensor(oh, requires_grad=requires_grad)
