@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from babygrad.tensor import Tensor
-from babygrad.nn import Parameter, Module, ReLU, Tanh, Sigmoid
+from babygrad.nn import Parameter, Module, ReLU, Tanh, Sigmoid, Flatten
 
 
 class TestParameter:
@@ -306,3 +306,32 @@ class TestSigmoidLayer:
 
     def test_sigmoid_is_module(self):
         assert isinstance(Sigmoid(), Module)
+
+
+class TestFlattenLayer:
+    def test_flatten_3d(self):
+        """Flatten (2,3,4) -> (2,12)."""
+        layer = Flatten()
+        x = Tensor(np.ones((2, 3, 4)))
+        y = layer(x)
+        assert y.shape == (2, 12)
+
+    def test_flatten_4d(self):
+        """Flatten (2,3,4,5) -> (2,60)."""
+        layer = Flatten()
+        x = Tensor(np.ones((2, 3, 4, 5)))
+        y = layer(x)
+        assert y.shape == (2, 60)
+
+    def test_flatten_preserves_values(self):
+        layer = Flatten()
+        data = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+        x = Tensor(data)
+        y = layer(x)
+        np.testing.assert_array_equal(y.data, data.reshape(2, 12))
+
+    def test_flatten_is_module(self):
+        assert isinstance(Flatten(), Module)
+
+    def test_flatten_no_parameters(self):
+        assert len(Flatten().parameters()) == 0

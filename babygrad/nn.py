@@ -117,3 +117,12 @@ class Sigmoid(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return ops.sigmoid(x)
+
+
+class Flatten(Module):
+    """Flattens a tensor to (batch_size, -1)."""
+
+    def forward(self, x: Tensor) -> Tensor:
+        batch_size = x.shape[0]
+        flat_dim = int(np.prod(x.shape[1:]))
+        return x.reshape(batch_size, flat_dim)
