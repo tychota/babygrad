@@ -271,3 +271,13 @@ class TestTensorInstanceMethods:
         b = t.broadcast_to((2, 3))
         assert b.shape == (2, 3)
         np.testing.assert_array_equal(b.data, [[1, 1, 1], [2, 2, 2]])
+
+    def test_sum(self):
+        t = Tensor([1.0, 2.0, 3.0])
+        s = t.sum()
+        np.testing.assert_array_almost_equal(s.data, 6.0)
+
+    def test_sum_2d(self):
+        t = Tensor([[1.0, 2.0], [3.0, 4.0]])
+        s = t.sum()
+        np.testing.assert_array_almost_equal(s.data, 10.0)

@@ -5,6 +5,7 @@ from babygrad.tensor import Tensor
 from babygrad.nn import (
     Parameter, Module, ReLU, Tanh, Sigmoid, Flatten, Linear,
     Sequential, Residual, Dropout, LayerNorm1d, BatchNorm1d,
+    MSELoss,
 )
 
 
@@ -681,3 +682,51 @@ class TestBatchNorm1d:
         loss.backward(Tensor(np.ones_like(loss.data)))
         assert x.grad is not None
         assert x.grad.shape == (3, 4)
+
+
+# ── MSELoss ────────────────────────────────────────────────────────
+
+
+class TestMSELoss:
+    def test_mse_perfect_prediction(self):
+        """MSE is 0 when pred == target."""
+        loss_fn = MSELoss()
+        pred = Tensor([1.0, 2.0, 3.0])
+        target = Tensor([1.0, 2.0, 3.0])
+        loss = loss_fn(pred, target)
+        np.testing.assert_array_almost_equal(loss.data, 0.0)
+
+    def test_mse_known_value(self):
+        """MSE matches manual computation."""
+        loss_fn = MSELoss()
+        pred = Tensor([1.0, 2.0, 3.0])
+        target = Tensor([2.0, 2.0, 2.0])
+        loss = loss_fn(pred, target)
+        # diff = [-1, 0, 1], sq = [1, 0, 1], mean = 2/3
+        np.testing.assert_array_almost_equal(loss.data, 2.0 / 3.0, decimal=5)
+
+    def test_mse_2d(self):
+        """MSE works on 2D tensors."""
+        loss_fn = MSELoss()
+        pred = Tensor([[1.0, 2.0], [3.0, 4.0]])
+        target = Tensor([[1.0, 1.0], [1.0, 1.0]])
+        loss = loss_fn(pred, target)
+        # diff = [[0,1],[2,3]], sq = [[0,1],[4,9]], sum=14, mean=14/4=3.5
+        np.testing.assert_array_almost_equal(loss.data, 3.5)
+
+    def test_mse_backward(self):
+        """Gradients flow through MSELoss."""
+        loss_fn = MSELoss()
+        pred = Tensor([1.0, 2.0, 3.0], requires_grad=True)
+        target = Tensor([2.0, 2.0, 2.0])
+        loss = loss_fn(pred, target)
+        loss.backward()
+        # d(MSE)/d(pred) = 2*(pred - target)/n
+        expected_grad = 2.0 * (np.array([1.0, 2.0, 3.0]) - np.array([2.0, 2.0, 2.0])) / 3.0
+        np.testing.assert_array_almost_equal(pred.grad, expected_grad, decimal=5)
+
+    def test_mse_is_module(self):
+        assert isinstance(MSELoss(), Module)
+
+    def test_mse_no_parameters(self):
+        assert len(MSELoss().parameters()) == 0

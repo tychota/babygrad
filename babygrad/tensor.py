@@ -263,6 +263,11 @@ class Tensor:
         from .ops import broadcast_to
         return broadcast_to(self, shape)
 
+    def sum(self, axes=None):
+        """Sum all elements (or along given axes)."""
+        from .ops import summation
+        return summation(self, axes=axes)
+
     @staticmethod
     def randn(*shape, dtype="float32"):
         """Create a tensor with random normal values."""

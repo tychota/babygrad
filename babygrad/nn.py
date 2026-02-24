@@ -278,3 +278,11 @@ class BatchNorm1d(Module):
         # (1,dim) -> (bs,dim)
         return ops.broadcast_to(weight_reshaped, x.shape) * x_hat \
                      + ops.broadcast_to(bias_reshaped, x.shape)
+
+
+class MSELoss(Module):
+    def forward(self, pred: Tensor, target: Tensor) -> Tensor:
+        """Calculates the Mean Squared Error."""
+        diff = pred - target
+        sq_diff = diff * diff
+        return sq_diff.sum() / Tensor(target.data.size)
