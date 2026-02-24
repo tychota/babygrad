@@ -4,7 +4,7 @@ import pytest
 from babygrad.tensor import Tensor
 from babygrad.nn import (
     Parameter, Module, ReLU, Tanh, Sigmoid, Flatten, Linear,
-    Sequential, Residual,
+    Sequential, Residual, Dropout,
 )
 
 
@@ -440,3 +440,51 @@ class TestResidual:
         res = Residual(Linear(3, 3))
         params = res.parameters()
         assert len(params) == 2  # weight + bias from inner Linear
+
+
+# ── Dropout ─────────────────────────────────────────────────────────
+
+
+class TestDropout:
+    def test_dropout_eval_returns_input(self):
+        """In eval mode, Dropout is a no-op."""
+        layer = Dropout(p=0.5)
+        layer.eval()
+        x = Tensor([1.0, 2.0, 3.0, 4.0])
+        y = layer(x)
+        np.testing.assert_array_equal(y.data, x.data)
+
+    def test_dropout_train_scales_output(self):
+        """In train mode, non-dropped values are scaled by 1/(1-p)."""
+        np.random.seed(42)
+        layer = Dropout(p=0.5)
+        x = Tensor(np.ones(1000, dtype=np.float32))
+        y = layer(x)
+        # Each surviving element should be 1/(1-0.5) = 2.0
+        nonzero = y.data[y.data != 0.0]
+        np.testing.assert_array_almost_equal(nonzero, np.full_like(nonzero, 2.0))
+
+    def test_dropout_train_zeros_some_elements(self):
+        """In train mode, roughly p fraction of elements are zeroed."""
+        np.random.seed(42)
+        layer = Dropout(p=0.5)
+        x = Tensor(np.ones(10000, dtype=np.float32))
+        y = layer(x)
+        zero_fraction = np.mean(y.data == 0.0)
+        # Should be roughly 0.5 (within tolerance)
+        assert 0.4 < zero_fraction < 0.6
+
+    def test_dropout_no_parameters(self):
+        assert len(Dropout().parameters()) == 0
+
+    def test_dropout_is_module(self):
+        assert isinstance(Dropout(), Module)
+
+    def test_dropout_preserves_mean(self):
+        """Inverted dropout: E[output] ≈ E[input] during training."""
+        np.random.seed(123)
+        layer = Dropout(p=0.3)
+        x = Tensor(np.ones(50000, dtype=np.float32) * 5.0)
+        y = layer(x)
+        # Mean should be close to 5.0 due to 1/(1-p) scaling
+        assert abs(np.mean(y.data) - 5.0) < 0.2

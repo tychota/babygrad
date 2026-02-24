@@ -176,3 +176,18 @@ class Residual(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return self.fn(x) + x
+
+
+class Dropout(Module):
+    """Randomly zeroes elements during training, scaled by 1/(1-p)."""
+
+    def __init__(self, p: float = 0.5):
+        super().__init__()
+        self.p = p
+
+    def forward(self, x: Tensor) -> Tensor:
+        if self.training:
+            mask = Tensor.randb(*x.shape, p=(1 - self.p))
+            return (x * mask) / (1 - self.p)
+        else:
+            return x
