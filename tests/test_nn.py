@@ -5,7 +5,7 @@ from babygrad.tensor import Tensor
 from babygrad.nn import (
     Parameter, Module, ReLU, Tanh, Sigmoid, Flatten, Linear,
     Sequential, Residual, Dropout, LayerNorm1d, BatchNorm1d,
-    MSELoss,
+    MSELoss, SoftmaxLoss,
 )
 
 
@@ -730,3 +730,69 @@ class TestMSELoss:
 
     def test_mse_no_parameters(self):
         assert len(MSELoss().parameters()) == 0
+
+
+# ── SoftmaxLoss ────────────────────────────────────────────────────
+
+
+class TestSoftmaxLoss:
+    def test_softmax_loss_known_value(self):
+        """Dog example from spec: logits=[2,5,0.1], label=1 (Dog)."""
+        loss_fn = SoftmaxLoss()
+        logits = Tensor(np.array([[2.0, 5.0, 0.1]], dtype=np.float32))
+        y = np.array([1])  # Dog
+        loss = loss_fn(logits, y)
+        # logsumexp([2,5,0.1]) - 5.0 (the Dog logit)
+        lse = np.log(np.sum(np.exp([2.0, 5.0, 0.1])))
+        expected = (lse - 5.0) / 1.0
+        np.testing.assert_array_almost_equal(loss.data, expected, decimal=4)
+
+    def test_softmax_loss_batch(self):
+        """Batch of 2 samples."""
+        loss_fn = SoftmaxLoss()
+        logits = Tensor(np.array([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]], dtype=np.float32))
+        y = np.array([2, 0])
+        loss = loss_fn(logits, y)
+        # Sample 0: logsumexp([1,2,3]) - 3, Sample 1: logsumexp([1,2,3]) - 1
+        lse = np.log(np.sum(np.exp([1.0, 2.0, 3.0])))
+        expected = ((lse - 3.0) + (lse - 1.0)) / 2.0
+        np.testing.assert_array_almost_equal(loss.data, expected, decimal=4)
+
+    def test_softmax_loss_perfect_prediction(self):
+        """Loss is small when model is very confident and correct."""
+        loss_fn = SoftmaxLoss()
+        logits = Tensor(np.array([[0.0, 100.0, 0.0]], dtype=np.float32))
+        y = np.array([1])
+        loss = loss_fn(logits, y)
+        assert loss.data < 0.01
+
+    def test_softmax_loss_backward(self):
+        """Gradients flow through SoftmaxLoss."""
+        loss_fn = SoftmaxLoss()
+        logits = Tensor(np.array([[1.0, 2.0, 3.0]], dtype=np.float32), requires_grad=True)
+        y = np.array([1])
+        loss = loss_fn(logits, y)
+        loss.backward()
+        assert logits.grad is not None
+        assert logits.grad.shape == (1, 3)
+
+    def test_softmax_loss_gradient_is_softmax_minus_onehot(self):
+        """d(loss)/d(logits) = (softmax(logits) - one_hot(y)) / n."""
+        loss_fn = SoftmaxLoss()
+        logits_np = np.array([[1.0, 2.0, 3.0]], dtype=np.float32)
+        logits = Tensor(logits_np, requires_grad=True)
+        y = np.array([1])
+        loss = loss_fn(logits, y)
+        loss.backward()
+        # softmax
+        exp_l = np.exp(logits_np)
+        sm = exp_l / np.sum(exp_l, axis=1, keepdims=True)
+        one_hot = np.array([[0, 1, 0]], dtype=np.float32)
+        expected = (sm - one_hot) / 1.0
+        np.testing.assert_array_almost_equal(logits.grad, expected, decimal=4)
+
+    def test_softmax_loss_is_module(self):
+        assert isinstance(SoftmaxLoss(), Module)
+
+    def test_softmax_loss_no_parameters(self):
+        assert len(SoftmaxLoss().parameters()) == 0
