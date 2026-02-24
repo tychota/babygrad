@@ -84,10 +84,10 @@ class TestTensorInit:
 class TestTensorAttributes:
     """Tests for Tensor attributes."""
 
-    def test_requires_grad_default_true(self):
-        """requires_grad defaults to True."""
+    def test_requires_grad_default_false(self):
+        """requires_grad defaults to False."""
         t = Tensor([1, 2, 3])
-        assert t.requires_grad is True
+        assert t.requires_grad is False
 
     def test_requires_grad_can_be_false(self):
         """requires_grad can be set to False."""
@@ -155,7 +155,7 @@ class TestTensorRepr:
 
     def test_repr_with_requires_grad_true(self):
         """__repr__ shows data and requires_grad=True."""
-        t = Tensor([1, 2, 3])
+        t = Tensor([1, 2, 3], requires_grad=True)
         result = repr(t)
         assert "Tensor(" in result
         assert "requires_grad=True" in result
@@ -283,15 +283,15 @@ class TestTensorInstanceMethods:
         np.testing.assert_array_almost_equal(s.data, 10.0)
 
     def test_one_hot(self):
-        labels = np.array([0, 2, 1])
+        labels = Tensor(np.array([0, 2, 1]))
         oh = Tensor.one_hot(labels, 3)
         expected = np.array([[1, 0, 0], [0, 0, 1], [0, 1, 0]], dtype=np.float32)
         np.testing.assert_array_equal(oh.data, expected)
 
     def test_one_hot_shape(self):
-        oh = Tensor.one_hot(np.array([1, 0]), 4)
+        oh = Tensor.one_hot(Tensor(np.array([1, 0])), 4)
         assert oh.shape == (2, 4)
 
-    def test_one_hot_no_grad_by_default(self):
-        oh = Tensor.one_hot(np.array([0]), 3, requires_grad=False)
-        assert oh.requires_grad is False
+    def test_one_hot_grad_by_default(self):
+        oh = Tensor.one_hot(Tensor(np.array([0])), 3)
+        assert oh.requires_grad is True

@@ -299,8 +299,46 @@ class SoftmaxLoss(Module):
                  containing the true class labels.
         """
         n, k = logits.shape
-        y_one_hot = Tensor.one_hot(y, k, requires_grad=False)
+        y_one_hot = Tensor.one_hot(Tensor(np.array(y)), k, requires_grad=False)
         logsumexp_val = ops.logsumexp(logits, axes=(1,))
         h_y = (logits * y_one_hot).sum(axes=(1,))
 
         return (logsumexp_val - h_y).sum() / n
+
+
+class CrossEntropyLoss(Module):
+    """Cross-entropy / negative log-likelihood loss.
+
+    Supports (B, C) logits with (B,) targets, or (B, L, C) logits
+    with (B, L) targets (language modelling). Use ignore_index to
+    exclude pad tokens from the loss.
+    """
+
+    def __init__(self, ignore_index=None):
+        super().__init__()
+        self.ignore_index = ignore_index
+
+    def forward(self, logits, targets):
+        num_classes = logits.shape[-1]
+
+        # Flatten to 2D: (N, C) and (N,)
+        flat_logits = ops.reshape(logits, (-1, num_classes))
+        all_targets = np.array(targets).reshape(-1)
+        n_total = flat_logits.shape[0]
+
+        if self.ignore_index is not None:
+            mask = (all_targets != self.ignore_index).astype(np.float32)
+            safe_targets = np.where(all_targets == self.ignore_index, 0, all_targets)
+        else:
+            mask = np.ones(n_total, dtype=np.float32)
+            safe_targets = all_targets
+
+        n_valid = float(np.sum(mask))
+
+        y_one_hot = Tensor.one_hot(Tensor(np.array(safe_targets)), num_classes, requires_grad=False)
+        logsumexp_val = ops.logsumexp(flat_logits, axes=(1,))
+        h_y = (flat_logits * y_one_hot).sum(axes=(1,))
+        per_sample_loss = logsumexp_val - h_y
+
+        mask_tensor = Tensor(mask, requires_grad=False)
+        return (per_sample_loss * mask_tensor).sum() / n_valid

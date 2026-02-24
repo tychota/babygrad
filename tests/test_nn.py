@@ -5,7 +5,7 @@ from babygrad.tensor import Tensor
 from babygrad.nn import (
     Parameter, Module, ReLU, Tanh, Sigmoid, Flatten, Linear,
     Sequential, Residual, Dropout, LayerNorm1d, BatchNorm1d,
-    MSELoss, SoftmaxLoss,
+    MSELoss, SoftmaxLoss, CrossEntropyLoss,
 )
 
 
@@ -796,3 +796,75 @@ class TestSoftmaxLoss:
 
     def test_softmax_loss_no_parameters(self):
         assert len(SoftmaxLoss().parameters()) == 0
+
+
+# ── CrossEntropyLoss ───────────────────────────────────────────────
+
+
+class TestCrossEntropyLoss:
+    def test_2d_logits_matches_softmax_loss(self):
+        """(B, C) logits + (B,) targets — same as SoftmaxLoss."""
+        ce = CrossEntropyLoss()
+        sf = SoftmaxLoss()
+        logits = Tensor(np.array([[1.0, 2.0, 3.0], [2.0, 1.0, 0.0]], dtype=np.float32))
+        y = np.array([2, 0])
+        np.testing.assert_array_almost_equal(ce(logits, y).data, sf(logits, y).data, decimal=5)
+
+    def test_3d_logits_language_model(self):
+        """(B, L, vocab) logits + (B, L) targets for language modelling."""
+        ce = CrossEntropyLoss()
+        # B=2, L=3, vocab=4
+        logits_np = np.random.randn(2, 3, 4).astype(np.float32)
+        logits = Tensor(logits_np)
+        targets = np.array([[0, 1, 2], [3, 0, 1]])
+        loss = ce(logits, targets)
+        # Manual: reshape to (6,4) and (6,), compute SoftmaxLoss
+        flat_logits = logits_np.reshape(-1, 4)
+        flat_targets = targets.reshape(-1)
+        sf = SoftmaxLoss()
+        expected = sf(Tensor(flat_logits), flat_targets)
+        np.testing.assert_array_almost_equal(loss.data, expected.data, decimal=4)
+
+    def test_ignore_index(self):
+        """Tokens with ignore_index should not contribute to loss."""
+        ce = CrossEntropyLoss(ignore_index=-1)
+        logits = Tensor(np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32))
+        targets = np.array([2, -1])  # second sample is padding
+        loss = ce(logits, targets)
+        # Only first sample contributes
+        sf = SoftmaxLoss()
+        single_loss = sf(Tensor(np.array([[1.0, 2.0, 3.0]], dtype=np.float32)), np.array([2]))
+        np.testing.assert_array_almost_equal(loss.data, single_loss.data, decimal=5)
+
+    def test_ignore_index_3d(self):
+        """ignore_index works with (B, L, vocab) inputs."""
+        ce = CrossEntropyLoss(ignore_index=0)
+        # B=1, L=3, vocab=3
+        logits_np = np.array([[[1.0, 2.0, 3.0],
+                               [2.0, 1.0, 0.0],
+                               [0.0, 0.0, 0.0]]], dtype=np.float32)
+        logits = Tensor(logits_np)
+        targets = np.array([[2, 1, 0]])  # last token is pad (ignore_index=0)
+        loss = ce(logits, targets)
+        # Only first two positions contribute
+        flat_logits = logits_np[0, :2, :]  # (2, 3)
+        flat_targets = np.array([2, 1])
+        sf = SoftmaxLoss()
+        expected = sf(Tensor(flat_logits), flat_targets)
+        np.testing.assert_array_almost_equal(loss.data, expected.data, decimal=4)
+
+    def test_backward(self):
+        """Gradients flow through CrossEntropyLoss."""
+        ce = CrossEntropyLoss()
+        logits = Tensor(np.random.randn(2, 3, 4).astype(np.float32), requires_grad=True)
+        targets = np.array([[0, 1, 2], [3, 0, 1]])
+        loss = ce(logits, targets)
+        loss.backward()
+        assert logits.grad is not None
+        assert logits.grad.shape == (2, 3, 4)
+
+    def test_is_module(self):
+        assert isinstance(CrossEntropyLoss(), Module)
+
+    def test_no_parameters(self):
+        assert len(CrossEntropyLoss().parameters()) == 0

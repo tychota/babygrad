@@ -138,8 +138,8 @@ class TestMatMulForward:
 
 class TestAddBackward:
     def test_add_gradient(self):
-        a = Tensor([1.0, 2.0])
-        b = Tensor([3.0, 4.0])
+        a = Tensor([1.0, 2.0], requires_grad=True)
+        b = Tensor([3.0, 4.0], requires_grad=True)
         c = a + b
         c.backward(Tensor([1.0, 1.0]))
         np.testing.assert_array_almost_equal(a.grad, [1.0, 1.0])
@@ -148,8 +148,8 @@ class TestAddBackward:
 
 class TestSubBackward:
     def test_sub_gradient(self):
-        a = Tensor([5.0, 7.0])
-        b = Tensor([1.0, 2.0])
+        a = Tensor([5.0, 7.0], requires_grad=True)
+        b = Tensor([1.0, 2.0], requires_grad=True)
         c = a - b
         c.backward(Tensor([1.0, 1.0]))
         np.testing.assert_array_almost_equal(a.grad, [1.0, 1.0])
@@ -158,8 +158,8 @@ class TestSubBackward:
 
 class TestMulBackward:
     def test_mul_gradient(self):
-        a = Tensor([2.0, 3.0])
-        b = Tensor([4.0, 5.0])
+        a = Tensor([2.0, 3.0], requires_grad=True)
+        b = Tensor([4.0, 5.0], requires_grad=True)
         c = a * b
         c.backward(Tensor([1.0, 1.0]))
         # d(a*b)/da = b, d(a*b)/db = a
@@ -169,7 +169,7 @@ class TestMulBackward:
 
 class TestPowBackward:
     def test_pow_gradient(self):
-        a = Tensor([2.0, 3.0])
+        a = Tensor([2.0, 3.0], requires_grad=True)
         c = a ** 3
         c.backward(Tensor([1.0, 1.0]))
         # d(a^3)/da = 3*a^2
@@ -181,7 +181,7 @@ class TestPowBackward:
         def f(x):
             return np.sum(x ** 3)
 
-        a = Tensor(x_np.copy(), dtype="float64")
+        a = Tensor(x_np.copy(), dtype="float64", requires_grad=True)
         c = a ** 3
         c.backward(Tensor([1.0, 1.0], dtype="float64"))
         expected = numerical_grad(f, x_np)
@@ -190,7 +190,7 @@ class TestPowBackward:
 
 class TestExpBaseBackward:
     def test_rpow_gradient(self):
-        a = Tensor([1.0, 2.0])
+        a = Tensor([1.0, 2.0], requires_grad=True)
         c = 2.0 ** a
         c.backward(Tensor([1.0, 1.0]))
         # d(2^a)/da = 2^a * ln(2)
@@ -200,8 +200,8 @@ class TestExpBaseBackward:
 
 class TestTrueDivBackward:
     def test_div_gradient(self):
-        a = Tensor([6.0, 12.0])
-        b = Tensor([2.0, 3.0])
+        a = Tensor([6.0, 12.0], requires_grad=True)
+        b = Tensor([2.0, 3.0], requires_grad=True)
         c = a / b
         c.backward(Tensor([1.0, 1.0]))
         # d(a/b)/da = 1/b
@@ -212,7 +212,7 @@ class TestTrueDivBackward:
 
 class TestNegBackward:
     def test_neg_gradient(self):
-        a = Tensor([1.0, -2.0, 3.0])
+        a = Tensor([1.0, -2.0, 3.0], requires_grad=True)
         c = -a
         c.backward(Tensor([1.0, 1.0, 1.0]))
         np.testing.assert_array_almost_equal(a.grad, [-1.0, -1.0, -1.0])
@@ -226,8 +226,8 @@ class TestBackwardGraph:
 
     def test_chain_rule(self):
         """y = (a + b) * b  =>  dy/da = b, dy/db = a + 2b"""
-        a = Tensor([2.0])
-        b = Tensor([3.0])
+        a = Tensor([2.0], requires_grad=True)
+        b = Tensor([3.0], requires_grad=True)
         c = a + b      # c = 5
         y = c * b      # y = 15
         y.backward(Tensor([1.0]))
@@ -255,7 +255,7 @@ class TestMulScalarForward:
 class TestMulScalarBackward:
     def test_mul_scalar_gradient(self):
         from babygrad.ops import MulScalar
-        a = Tensor([2.0, 3.0])
+        a = Tensor([2.0, 3.0], requires_grad=True)
         c = MulScalar(5.0)(a)
         c.backward(Tensor([1.0, 1.0]))
         # d(a*5)/da = 5
@@ -279,7 +279,7 @@ class TestDivScalarForward:
 class TestDivScalarBackward:
     def test_div_scalar_gradient(self):
         from babygrad.ops import DivScalar
-        a = Tensor([10.0, 15.0])
+        a = Tensor([10.0, 15.0], requires_grad=True)
         c = DivScalar(5.0)(a)
         c.backward(Tensor([1.0, 1.0]))
         # d(a/5)/da = 1/5
@@ -303,7 +303,7 @@ class TestPowerScalarForward:
 class TestPowerScalarBackward:
     def test_power_scalar_gradient(self):
         from babygrad.ops import PowerScalar
-        a = Tensor([2.0, 3.0])
+        a = Tensor([2.0, 3.0], requires_grad=True)
         c = PowerScalar(3.0)(a)
         c.backward(Tensor([1.0, 1.0]))
         # d(a^3)/da = 3*a^2
@@ -311,7 +311,7 @@ class TestPowerScalarBackward:
 
     def test_power_scalar_gradient_vs_numerical(self):
         x_np = np.array([2.0, 3.0], dtype="float64")
-        a = Tensor(x_np.copy(), dtype="float64")
+        a = Tensor(x_np.copy(), dtype="float64", requires_grad=True)
         c = a ** 3.0
         c.backward(Tensor([1.0, 1.0], dtype="float64"))
 
