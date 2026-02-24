@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from babygrad.tensor import Tensor
-from babygrad.nn import Parameter, Module
+from babygrad.nn import Parameter, Module, ReLU, Tanh, Sigmoid
 
 
 class TestParameter:
@@ -266,3 +266,43 @@ class TestModuleTrainingState:
         assert net.training is True
         assert net.children_list[0].training is True
         assert net.children_list[1].training is True
+
+
+# ── Stateless layers ────────────────────────────────────────────────
+
+
+class TestReLULayer:
+    def test_relu_forward(self):
+        layer = ReLU()
+        x = Tensor([-1.0, 0.0, 2.0])
+        y = layer(x)
+        np.testing.assert_array_almost_equal(y.data, [0.0, 0.0, 2.0])
+
+    def test_relu_is_module(self):
+        assert isinstance(ReLU(), Module)
+
+    def test_relu_no_parameters(self):
+        assert len(ReLU().parameters()) == 0
+
+
+class TestTanhLayer:
+    def test_tanh_forward(self):
+        layer = Tanh()
+        x = Tensor([0.0, 1.0, -1.0])
+        y = layer(x)
+        np.testing.assert_array_almost_equal(y.data, np.tanh([0.0, 1.0, -1.0]), decimal=5)
+
+    def test_tanh_is_module(self):
+        assert isinstance(Tanh(), Module)
+
+
+class TestSigmoidLayer:
+    def test_sigmoid_forward(self):
+        layer = Sigmoid()
+        x = Tensor([0.0, 2.0, -2.0])
+        y = layer(x)
+        expected = 1.0 / (1.0 + np.exp(-np.array([0.0, 2.0, -2.0])))
+        np.testing.assert_array_almost_equal(y.data, expected, decimal=5)
+
+    def test_sigmoid_is_module(self):
+        assert isinstance(Sigmoid(), Module)

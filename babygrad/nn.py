@@ -96,3 +96,24 @@ class Module:
         self.training = False
         for m in _get_modules(self.__dict__):
             m.training = False
+
+
+class ReLU(Module):
+    """Applies ReLU element-wise."""
+
+    def forward(self, x: Tensor) -> Tensor:
+        return ops.relu(x)
+
+
+class Tanh(Module):
+    """Applies Tanh element-wise."""
+
+    def forward(self, x: Tensor) -> Tensor:
+        return ops.tanh(x)
+
+
+class Sigmoid(Module):
+    """Applies Sigmoid element-wise."""
+
+    def forward(self, x: Tensor) -> Tensor:
+        return ops.sigmoid(x)
