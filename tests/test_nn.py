@@ -4,7 +4,7 @@ import pytest
 from babygrad.tensor import Tensor
 from babygrad.nn import (
     Parameter, Module, ReLU, Tanh, Sigmoid, Flatten, Linear,
-    Sequential, Residual, Dropout,
+    Sequential, Residual, Dropout, LayerNorm1d,
 )
 
 
@@ -488,3 +488,75 @@ class TestDropout:
         y = layer(x)
         # Mean should be close to 5.0 due to 1/(1-p) scaling
         assert abs(np.mean(y.data) - 5.0) < 0.2
+
+
+# ── LayerNorm1d ─────────────────────────────────────────────────────
+
+
+class TestLayerNorm1d:
+    def test_output_shape(self):
+        ln = LayerNorm1d(4)
+        x = Tensor(np.random.randn(2, 4).astype(np.float32), requires_grad=True)
+        y = ln(x)
+        assert y.shape == (2, 4)
+
+    def test_normalizes_to_zero_mean_unit_var(self):
+        """With default weight=1 and bias=0, output has ~zero mean, ~unit var per sample."""
+        ln = LayerNorm1d(8)
+        x = Tensor(np.array([[10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0],
+                              [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]], dtype=np.float32),
+                    requires_grad=True)
+        y = ln(x)
+        # Each row should have mean ≈ 0 and std ≈ 1
+        for i in range(2):
+            row = y.data[i]
+            assert abs(np.mean(row)) < 1e-5
+            assert abs(np.std(row) - 1.0) < 0.05
+
+    def test_matches_pytorch_formula(self):
+        """Verify against manual LayerNorm computation."""
+        dim = 4
+        ln = LayerNorm1d(dim)
+        x_np = np.array([[1.0, 2.0, 3.0, 4.0]], dtype=np.float32)
+        x = Tensor(x_np, requires_grad=True)
+        y = ln(x)
+
+        # Manual computation: mean=2.5, var=1.25
+        mean = np.mean(x_np, axis=-1, keepdims=True)  # [[2.5]]
+        var = np.var(x_np, axis=-1, keepdims=True)      # [[1.25]]
+        expected = (x_np - mean) / np.sqrt(var + 1e-5)
+        # weight=1, bias=0 by default
+        np.testing.assert_array_almost_equal(y.data, expected, decimal=4)
+
+    def test_has_weight_and_bias_parameters(self):
+        ln = LayerNorm1d(5)
+        params = ln.parameters()
+        assert len(params) == 2
+        assert isinstance(ln.weight, Parameter)
+        assert isinstance(ln.bias, Parameter)
+
+    def test_weight_and_bias_shape(self):
+        ln = LayerNorm1d(6)
+        assert ln.weight.shape == (6,)
+        assert ln.bias.shape == (6,)
+
+    def test_weight_initialized_to_ones(self):
+        ln = LayerNorm1d(3)
+        np.testing.assert_array_equal(ln.weight.data, [1.0, 1.0, 1.0])
+
+    def test_bias_initialized_to_zeros(self):
+        ln = LayerNorm1d(3)
+        np.testing.assert_array_equal(ln.bias.data, [0.0, 0.0, 0.0])
+
+    def test_is_module(self):
+        assert isinstance(LayerNorm1d(4), Module)
+
+    def test_backward_runs(self):
+        """Verify gradients flow through LayerNorm."""
+        ln = LayerNorm1d(4)
+        x = Tensor(np.random.randn(2, 4).astype(np.float32), requires_grad=True)
+        y = ln(x)
+        loss = y * Tensor(np.ones_like(y.data))
+        loss.backward(Tensor(np.ones_like(loss.data)))
+        assert x.grad is not None
+        assert x.grad.shape == (2, 4)
