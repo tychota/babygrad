@@ -253,7 +253,7 @@ class Tensor:
         """Explicit method for matrix multiplication: a.matmul(b)"""
         return self.__matmul__(other)
 
-    def reshape(self, *shape):
+    def reshape(self, *shape, **kwargs):
         """Return a reshaped view of this tensor."""
         from .ops import reshape
         return reshape(self, shape)

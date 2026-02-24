@@ -390,3 +390,28 @@ class TestSigmoidBackward:
         s = 1.0 / (1.0 + np.exp(-np.array([0.0, 2.0, -2.0])))
         expected = s * (1.0 - s)
         np.testing.assert_array_almost_equal(a.grad, expected, decimal=5)
+
+
+class TestSqrtForward:
+    def test_sqrt_values(self):
+        from babygrad.ops import sqrt
+        a = Tensor([1.0, 4.0, 9.0, 16.0])
+        c = sqrt(a)
+        np.testing.assert_array_almost_equal(c.data, [1.0, 2.0, 3.0, 4.0], decimal=5)
+
+    def test_sqrt_small_values(self):
+        from babygrad.ops import sqrt
+        a = Tensor([0.01, 0.25])
+        c = sqrt(a)
+        np.testing.assert_array_almost_equal(c.data, [0.1, 0.5], decimal=5)
+
+
+class TestSqrtBackward:
+    def test_sqrt_gradient(self):
+        from babygrad.ops import sqrt
+        a = Tensor([1.0, 4.0, 9.0], requires_grad=True)
+        c = sqrt(a)
+        c.backward(Tensor([1.0, 1.0, 1.0]))
+        # d(sqrt(a))/da = 1 / (2 * sqrt(a))
+        expected = 1.0 / (2.0 * np.sqrt([1.0, 4.0, 9.0]))
+        np.testing.assert_array_almost_equal(a.grad, expected, decimal=5)

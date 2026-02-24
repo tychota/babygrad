@@ -187,7 +187,7 @@ class Reshape(Function):
 
     def backward(self, out_grad, node):
         a = node._inputs[0]
-        return np.reshape(out_grad, a.data.shape)
+        return reshape(out_grad, a.data.shape)
 
 def reshape(a, shape):
     return Reshape(shape)(a)
@@ -348,3 +348,16 @@ class Sigmoid(Function):
 
 def sigmoid(a):
     return Sigmoid()(a)
+
+
+class Sqrt(Function):
+    """Computes element-wise square root: sqrt(x)."""
+    def forward(self, a: NDArray):
+        return np.sqrt(a)
+
+    def backward(self, out_grad, node):
+        a = node._inputs[0]
+        return out_grad / (Tensor(2.0 * np.sqrt(a.data)))
+
+def sqrt(a):
+    return Sqrt()(a)
