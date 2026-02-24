@@ -230,3 +230,44 @@ class TestTensorDetach:
         t = Tensor([1, 2, 3])
         result = t.detach()
         assert result is not t
+
+
+class TestTensorStaticMethods:
+    """Tests for Tensor static factory methods."""
+
+    def test_randn_shape(self):
+        t = Tensor.randn(3, 4)
+        assert t.shape == (3, 4)
+        assert t.dtype == np.float32
+
+    def test_zeros_shape(self):
+        t = Tensor.zeros(2, 3)
+        assert t.shape == (2, 3)
+        np.testing.assert_array_equal(t.data, np.zeros((2, 3)))
+
+    def test_ones_shape(self):
+        t = Tensor.ones(2, 3)
+        assert t.shape == (2, 3)
+        np.testing.assert_array_equal(t.data, np.ones((2, 3)))
+
+    def test_randb_shape_and_values(self):
+        np.random.seed(0)
+        t = Tensor.randb(100, p=0.5)
+        assert t.shape == (100,)
+        # All values should be 0 or 1
+        assert set(np.unique(t.data)).issubset({0.0, 1.0})
+
+
+class TestTensorInstanceMethods:
+    """Tests for reshape and broadcast_to instance methods."""
+
+    def test_reshape(self):
+        t = Tensor(np.arange(6, dtype=np.float32))
+        r = t.reshape(2, 3)
+        assert r.shape == (2, 3)
+
+    def test_broadcast_to(self):
+        t = Tensor(np.array([[1.0], [2.0]]))
+        b = t.broadcast_to((2, 3))
+        assert b.shape == (2, 3)
+        np.testing.assert_array_equal(b.data, [[1, 1, 1], [2, 2, 2]])

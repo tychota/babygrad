@@ -21,9 +21,6 @@ class Tensor:
             device: Device placement (currently ignored, CPU only)
             dtype: Data type for the array
             requires_grad: Whether to track gradients for this tensor
-
-        Design decision: requires_grad defaults to True (unlike PyTorch)
-         (Will change later to false, when introducing Parameter)
         """
         if isinstance(data, Tensor):
             if dtype is None:
@@ -255,3 +252,33 @@ class Tensor:
     def matmul(self, other):
         """Explicit method for matrix multiplication: a.matmul(b)"""
         return self.__matmul__(other)
+
+    def reshape(self, *shape):
+        """Return a reshaped view of this tensor."""
+        from .ops import reshape
+        return reshape(self, shape)
+
+    def broadcast_to(self, shape):
+        """Broadcast this tensor to the given shape."""
+        from .ops import broadcast_to
+        return broadcast_to(self, shape)
+
+    @staticmethod
+    def randn(*shape, dtype="float32"):
+        """Create a tensor with random normal values."""
+        return Tensor(np.random.randn(*shape).astype(dtype))
+
+    @staticmethod
+    def zeros(*shape, dtype="float32"):
+        """Create a tensor of zeros."""
+        return Tensor(np.zeros(shape, dtype=dtype))
+
+    @staticmethod
+    def ones(*shape, dtype="float32"):
+        """Create a tensor of ones."""
+        return Tensor(np.ones(shape, dtype=dtype))
+
+    @staticmethod
+    def randb(*shape, p=0.5, dtype="float32"):
+        """Create a tensor of random binary values (0 or 1) with P(1) = p."""
+        return Tensor(np.random.binomial(1, p, size=shape).astype(dtype))
