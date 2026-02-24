@@ -152,3 +152,16 @@ class Linear(Module):
         if self.bias is not None:
             out += self.bias.broadcast_to(out.shape)
         return out
+
+
+class Sequential(Module):
+    """Chains a sequence of modules: output of one becomes input of next."""
+
+    def __init__(self, *modules):
+        super().__init__()
+        self.modules = modules
+
+    def forward(self, x: Tensor) -> Tensor:
+        for module in self.modules:
+            x = module(x)
+        return x

@@ -2,7 +2,10 @@ import numpy as np
 import pytest
 
 from babygrad.tensor import Tensor
-from babygrad.nn import Parameter, Module, ReLU, Tanh, Sigmoid, Flatten, Linear
+from babygrad.nn import (
+    Parameter, Module, ReLU, Tanh, Sigmoid, Flatten, Linear,
+    Sequential,
+)
 
 
 class TestParameter:
@@ -382,3 +385,28 @@ class TestLinearLayer:
         # x @ W = [1,2] @ [[1,1,1],[1,1,1]] = [3,3,3]
         # + bias = [3.1, 3.2, 3.3]
         np.testing.assert_array_almost_equal(y.data, [[3.1, 3.2, 3.3]])
+
+
+# ── Sequential ──────────────────────────────────────────────────────
+
+
+class TestSequential:
+    def test_sequential_chains_layers(self):
+        model = Sequential(Linear(3, 5), ReLU(), Linear(5, 2))
+        x = Tensor(np.ones((1, 3), dtype=np.float32))
+        y = model(x)
+        assert y.shape == (1, 2)
+
+    def test_sequential_is_module(self):
+        assert isinstance(Sequential(), Module)
+
+    def test_sequential_finds_all_parameters(self):
+        model = Sequential(Linear(3, 5), ReLU(), Linear(5, 2))
+        params = model.parameters()
+        # Linear(3,5): weight + bias = 2, Linear(5,2): weight + bias = 2
+        assert len(params) == 4
+
+    def test_sequential_eval_propagates(self):
+        model = Sequential(Linear(3, 5), ReLU(), Linear(5, 2))
+        model.eval()
+        assert model.training is False
