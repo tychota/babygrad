@@ -6,6 +6,7 @@ from babygrad.nn import (
     CrossEntropyLoss,
 )
 from babygrad.optim import Optimizer, SGD
+from babygrad.data import Dataset, MNISTDataset, DataLoader, parse_mnist
 
 __all__ = [
     "Tensor", "Parameter", "Module",
@@ -14,4 +15,5 @@ __all__ = [
     "LayerNorm1d", "BatchNorm1d", "MSELoss", "SoftmaxLoss",
     "CrossEntropyLoss",
     "Optimizer", "SGD",
+    "Dataset", "MNISTDataset", "DataLoader", "parse_mnist",
 ]

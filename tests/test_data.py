@@ -4,7 +4,8 @@ import struct
 import numpy as np
 import pytest
 
-from babygrad.data import Dataset, MNISTDataset, parse_mnist
+from babygrad.data import Dataset, DataLoader, MNISTDataset, parse_mnist
+from babygrad.tensor import Tensor
 
 
 def _write_mnist_images(path, images):
@@ -197,3 +198,85 @@ class TestMNISTDatasetTransforms:
         ds = MNISTDataset(img, lbl, transforms=[lambda x: x * 0])
         image, _ = ds[0]
         np.testing.assert_array_equal(image, np.zeros((28, 28, 1)))
+
+
+# ── DataLoader ──────────────────────────────────────────────────────
+
+
+class NumberDataset(Dataset):
+    """Simple dataset for testing DataLoader."""
+
+    def __init__(self):
+        super().__init__()
+        self.x = np.arange(10, dtype=np.float32)
+        self.y = np.arange(10, dtype=np.float32) * 2
+
+    def __getitem__(self, index):
+        return self.x[index], self.y[index]
+
+    def __len__(self):
+        return len(self.x)
+
+
+class TestDataLoaderIteration:
+    def test_iterates_all_batches(self):
+        ds = NumberDataset()  # 10 items
+        loader = DataLoader(ds, batch_size=5, shuffle=False)
+        batches = list(loader)
+        assert len(batches) == 2
+
+    def test_returns_tensor_tuples(self):
+        ds = NumberDataset()
+        loader = DataLoader(ds, batch_size=3, shuffle=False)
+        x_batch, y_batch = next(iter(loader))
+        assert isinstance(x_batch, Tensor)
+        assert isinstance(y_batch, Tensor)
+
+    def test_batch_shapes(self):
+        ds = NumberDataset()
+        loader = DataLoader(ds, batch_size=4, shuffle=False)
+        x_batch, y_batch = next(iter(loader))
+        assert x_batch.shape == (4,)
+        assert y_batch.shape == (4,)
+
+    def test_batch_values_no_shuffle(self):
+        ds = NumberDataset()
+        loader = DataLoader(ds, batch_size=3, shuffle=False)
+        x_batch, y_batch = next(iter(loader))
+        np.testing.assert_array_equal(x_batch.data, [0, 1, 2])
+        np.testing.assert_array_equal(y_batch.data, [0, 2, 4])
+
+    def test_drops_incomplete_last_batch(self):
+        ds = NumberDataset()  # 10 items, batch_size=3 -> 3 full batches (9 items)
+        loader = DataLoader(ds, batch_size=3, shuffle=False)
+        batches = list(loader)
+        assert len(batches) == 3
+        # Last batch has items at indices 9 only would be incomplete
+        # 10 // 3 = 3 batches of 3 items = 9 items used
+
+    def test_can_iterate_multiple_times(self):
+        ds = NumberDataset()
+        loader = DataLoader(ds, batch_size=5, shuffle=False)
+        batches1 = list(loader)
+        batches2 = list(loader)
+        assert len(batches1) == len(batches2)
+        np.testing.assert_array_equal(batches1[0][0].data, batches2[0][0].data)
+
+
+class TestDataLoaderShuffle:
+    def test_shuffle_changes_order(self):
+        ds = NumberDataset()
+        loader = DataLoader(ds, batch_size=10, shuffle=True)
+        # Collect all items across iterations - at least one should differ
+        np.random.seed(42)
+        x1, _ = next(iter(loader))
+        np.random.seed(99)
+        x2, _ = next(iter(loader))
+        # With different seeds, shuffled orders should (very likely) differ
+        assert not np.array_equal(x1.data, x2.data)
+
+    def test_no_shuffle_preserves_order(self):
+        ds = NumberDataset()
+        loader = DataLoader(ds, batch_size=5, shuffle=False)
+        x_batch, _ = next(iter(loader))
+        np.testing.assert_array_equal(x_batch.data, [0, 1, 2, 3, 4])

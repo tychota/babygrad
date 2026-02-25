@@ -61,3 +61,33 @@ class MNISTDataset(Dataset):
 
     def __len__(self):
         return len(self.images)
+
+
+class DataLoader:
+    """Provides an iterator for easy batching, shuffling, and loading of data."""
+
+    def __init__(self, dataset, batch_size=1, shuffle=True):
+        self.dataset = dataset
+        self.shuffle = shuffle
+        self.batch_size = batch_size
+
+    def __iter__(self):
+        from .tensor import Tensor
+
+        self._Tensor = Tensor
+        self.indices = np.arange(len(self.dataset))
+        if self.shuffle:
+            np.random.shuffle(self.indices)
+        self.batch_idx = 0
+        self.num_batches = len(self.dataset) // self.batch_size
+        return self
+
+    def __next__(self):
+        if self.batch_idx >= self.num_batches:
+            raise StopIteration
+        start = self.batch_idx * self.batch_size
+        batch_indices = self.indices[start : start + self.batch_size]
+        samples = [self.dataset[i] for i in batch_indices]
+        xs, ys = zip(*samples)
+        self.batch_idx += 1
+        return self._Tensor(np.stack(xs)), self._Tensor(np.stack(ys))
