@@ -4,7 +4,7 @@ import struct
 import numpy as np
 import pytest
 
-from babygrad.data import Dataset, parse_mnist
+from babygrad.data import Dataset, MNISTDataset, parse_mnist
 
 
 def _write_mnist_images(path, images):
@@ -131,3 +131,69 @@ class TestParseMnist:
 
         X, y = parse_mnist(str(img_path), str(lbl_path))
         assert X[0, 0] == pytest.approx(128 / 255.0)
+
+
+# ── MNISTDataset ────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def mnist_files(tmp_path):
+    """Create small MNIST fixture files (5 images, 28x28)."""
+    np.random.seed(0)
+    images = np.random.randint(0, 256, (5, 28, 28), dtype=np.uint8)
+    labels = np.array([0, 1, 2, 3, 4], dtype=np.uint8)
+    img_path = str(tmp_path / "images.gz")
+    lbl_path = str(tmp_path / "labels.gz")
+    _write_mnist_images(img_path, images)
+    _write_mnist_labels(lbl_path, labels)
+    return img_path, lbl_path
+
+
+class TestMNISTDatasetLen:
+    def test_len_returns_number_of_images(self, mnist_files):
+        img, lbl = mnist_files
+        ds = MNISTDataset(img, lbl)
+        assert len(ds) == 5
+
+
+class TestMNISTDatasetGetItemInt:
+    def test_single_index_returns_tuple(self, mnist_files):
+        img, lbl = mnist_files
+        ds = MNISTDataset(img, lbl)
+        result = ds[0]
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+    def test_single_index_image_shape(self, mnist_files):
+        img, lbl = mnist_files
+        ds = MNISTDataset(img, lbl)
+        image, label = ds[0]
+        assert image.shape == (28, 28, 1)
+
+    def test_single_index_label_value(self, mnist_files):
+        img, lbl = mnist_files
+        ds = MNISTDataset(img, lbl)
+        _, label = ds[2]
+        assert label == 2
+
+
+class TestMNISTDatasetGetItemSlice:
+    def test_slice_image_shape(self, mnist_files):
+        img, lbl = mnist_files
+        ds = MNISTDataset(img, lbl)
+        images, labels = ds[1:4]
+        assert images.shape == (3, 28, 28, 1)
+
+    def test_slice_labels(self, mnist_files):
+        img, lbl = mnist_files
+        ds = MNISTDataset(img, lbl)
+        _, labels = ds[0:3]
+        np.testing.assert_array_equal(labels, [0, 1, 2])
+
+
+class TestMNISTDatasetTransforms:
+    def test_transform_applied_to_single_item(self, mnist_files):
+        img, lbl = mnist_files
+        ds = MNISTDataset(img, lbl, transforms=[lambda x: x * 0])
+        image, _ = ds[0]
+        np.testing.assert_array_equal(image, np.zeros((28, 28, 1)))

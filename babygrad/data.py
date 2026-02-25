@@ -42,3 +42,22 @@ class Dataset:
         for t in self.transforms:
             x = t(x)
         return x
+
+
+class MNISTDataset(Dataset):
+    def __init__(self, image_filename, label_filename, transforms=None):
+        super().__init__(transforms)
+        self.images, self.labels = parse_mnist(image_filename, label_filename)
+
+    def __getitem__(self, index):
+        images = self.images[index]
+        labels = self.labels[index]
+        if isinstance(index, slice):
+            images = images.reshape(-1, 28, 28, 1)
+        else:
+            images = images.reshape(28, 28, 1)
+        images = self.apply_transform(images)
+        return images, labels
+
+    def __len__(self):
+        return len(self.images)
