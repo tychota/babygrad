@@ -1,0 +1,133 @@
+import gzip
+import struct
+
+import numpy as np
+import pytest
+
+from babygrad.data import Dataset, parse_mnist
+
+
+def _write_mnist_images(path, images):
+    """Write a small gzipped MNIST image file."""
+    num, rows, cols = images.shape
+    with gzip.open(path, "wb") as f:
+        f.write(struct.pack(">IIII", 2051, num, rows, cols))
+        f.write(images.astype(np.uint8).tobytes())
+
+
+def _write_mnist_labels(path, labels):
+    """Write a small gzipped MNIST label file."""
+    with gzip.open(path, "wb") as f:
+        f.write(struct.pack(">II", 2049, len(labels)))
+        f.write(np.array(labels, dtype=np.uint8).tobytes())
+
+
+# ── Dataset base class ──────────────────────────────────────────────
+
+
+class TestDatasetInit:
+    def test_default_transforms_is_none(self):
+        ds = Dataset()
+        assert ds.transforms is None
+
+    def test_accepts_transforms_list(self):
+        transforms = [lambda x: x * 2]
+        ds = Dataset(transforms=transforms)
+        assert ds.transforms is transforms
+
+
+class TestDatasetAbstractMethods:
+    def test_getitem_raises_not_implemented(self):
+        ds = Dataset()
+        with pytest.raises(NotImplementedError):
+            ds[0]
+
+    def test_len_raises_not_implemented(self):
+        ds = Dataset()
+        with pytest.raises(NotImplementedError):
+            len(ds)
+
+
+class TestDatasetApplyTransform:
+    def test_no_transforms_returns_input_unchanged(self):
+        ds = Dataset()
+        x = np.array([1.0, 2.0, 3.0])
+        result = ds.apply_transform(x)
+        np.testing.assert_array_equal(result, x)
+
+    def test_single_transform_applied(self):
+        ds = Dataset(transforms=[lambda x: x * 2])
+        x = np.array([1.0, 2.0, 3.0])
+        result = ds.apply_transform(x)
+        np.testing.assert_array_equal(result, [2.0, 4.0, 6.0])
+
+    def test_multiple_transforms_applied_in_order(self):
+        ds = Dataset(transforms=[lambda x: x + 1, lambda x: x * 10])
+        x = np.array([1.0, 2.0])
+        result = ds.apply_transform(x)
+        # (1+1)*10=20, (2+1)*10=30
+        np.testing.assert_array_equal(result, [20.0, 30.0])
+
+
+# ── parse_mnist ─────────────────────────────────────────────────────
+
+
+class TestParseMnist:
+    def test_returns_images_and_labels(self, tmp_path):
+        images = np.zeros((3, 28, 28), dtype=np.uint8)
+        labels = np.array([0, 1, 2], dtype=np.uint8)
+        img_path = tmp_path / "images.gz"
+        lbl_path = tmp_path / "labels.gz"
+        _write_mnist_images(str(img_path), images)
+        _write_mnist_labels(str(lbl_path), labels)
+
+        X, y = parse_mnist(str(img_path), str(lbl_path))
+        assert isinstance(X, np.ndarray)
+        assert isinstance(y, np.ndarray)
+
+    def test_images_shape_is_num_by_784(self, tmp_path):
+        images = np.random.randint(0, 256, (5, 28, 28), dtype=np.uint8)
+        labels = np.array([0, 1, 2, 3, 4], dtype=np.uint8)
+        img_path = tmp_path / "images.gz"
+        lbl_path = tmp_path / "labels.gz"
+        _write_mnist_images(str(img_path), images)
+        _write_mnist_labels(str(lbl_path), labels)
+
+        X, y = parse_mnist(str(img_path), str(lbl_path))
+        assert X.shape == (5, 784)
+
+    def test_labels_shape(self, tmp_path):
+        images = np.zeros((4, 28, 28), dtype=np.uint8)
+        labels = np.array([7, 3, 1, 9], dtype=np.uint8)
+        img_path = tmp_path / "images.gz"
+        lbl_path = tmp_path / "labels.gz"
+        _write_mnist_images(str(img_path), images)
+        _write_mnist_labels(str(lbl_path), labels)
+
+        X, y = parse_mnist(str(img_path), str(lbl_path))
+        assert y.shape == (4,)
+        np.testing.assert_array_equal(y, [7, 3, 1, 9])
+
+    def test_images_normalized_to_float32(self, tmp_path):
+        images = np.full((2, 28, 28), 255, dtype=np.uint8)
+        labels = np.array([0, 1], dtype=np.uint8)
+        img_path = tmp_path / "images.gz"
+        lbl_path = tmp_path / "labels.gz"
+        _write_mnist_images(str(img_path), images)
+        _write_mnist_labels(str(lbl_path), labels)
+
+        X, y = parse_mnist(str(img_path), str(lbl_path))
+        assert X.dtype == np.float32
+        np.testing.assert_allclose(X[0], np.ones(784, dtype=np.float32))
+
+    def test_pixel_values_correctly_normalized(self, tmp_path):
+        images = np.zeros((1, 28, 28), dtype=np.uint8)
+        images[0, 0, 0] = 128
+        labels = np.array([5], dtype=np.uint8)
+        img_path = tmp_path / "images.gz"
+        lbl_path = tmp_path / "labels.gz"
+        _write_mnist_images(str(img_path), images)
+        _write_mnist_labels(str(lbl_path), labels)
+
+        X, y = parse_mnist(str(img_path), str(lbl_path))
+        assert X[0, 0] == pytest.approx(128 / 255.0)
