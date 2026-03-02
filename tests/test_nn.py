@@ -6,6 +6,7 @@ from babygrad.nn import (
     Parameter, Module, ReLU, Tanh, Sigmoid, GELU, SiLU, Flatten, Linear,
     Sequential, Residual, Dropout, LayerNorm1d, BatchNorm1d,
     MSELoss, SoftmaxLoss, CrossEntropyLoss,
+    Embedding,
 )
 
 
@@ -897,3 +898,35 @@ class TestCrossEntropyLoss:
 
     def test_no_parameters(self):
         assert len(CrossEntropyLoss().parameters()) == 0
+
+
+class TestEmbeddingModule:
+    def test_output_shape(self):
+        emb = Embedding(vocab_size=100, embed_dim=32)
+        x = Tensor([0, 5, 10])
+        result = emb(x)
+        assert result.shape == (3, 32)
+
+    def test_2d_input(self):
+        emb = Embedding(vocab_size=100, embed_dim=32)
+        x = Tensor([[0, 1], [2, 3]])
+        result = emb(x)
+        assert result.shape == (2, 2, 32)
+
+    def test_has_weight_parameter(self):
+        emb = Embedding(vocab_size=10, embed_dim=5)
+        params = emb.parameters()
+        assert len(params) == 1
+        assert params[0].shape == (10, 5)
+
+    def test_is_module(self):
+        assert isinstance(Embedding(10, 5), Module)
+
+    def test_backward(self):
+        from babygrad.ops import summation
+        emb = Embedding(vocab_size=5, embed_dim=3)
+        x = Tensor([0, 1, 0])
+        result = emb(x)
+        loss = summation(result)
+        loss.backward()
+        assert emb.weight.grad is not None

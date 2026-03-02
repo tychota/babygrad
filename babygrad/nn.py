@@ -354,3 +354,13 @@ class CrossEntropyLoss(Module):
 
         mask_tensor = Tensor(mask, requires_grad=False)
         return (per_sample_loss * mask_tensor).sum() / n_valid
+
+
+class Embedding(Module):
+    """Lookup table for token embeddings."""
+    def __init__(self, vocab_size: int, embed_dim: int):
+        super().__init__()
+        self.weight = Parameter(Tensor(np.random.randn(vocab_size, embed_dim).astype(np.float32)))
+
+    def forward(self, x: Tensor) -> Tensor:
+        return ops.embedding(self.weight, x)

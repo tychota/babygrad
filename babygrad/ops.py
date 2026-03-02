@@ -574,3 +574,18 @@ class Gather(Function):
 def gather(a, indices, axis=0):
     indices_tensor = Tensor(indices) if not isinstance(indices, Tensor) else indices
     return Gather(axis)(a, indices_tensor)
+
+
+class EmbeddingOp(Function):
+    """Lookup rows from weight matrix by index."""
+    def forward(self, weight: NDArray, indices: NDArray):
+        self.indices = indices.astype(int)
+        return weight[self.indices]
+    def backward(self, out_grad, node):
+        weight = node._inputs[0]
+        grad = np.zeros_like(weight.data)
+        np.add.at(grad, self.indices, out_grad.data)
+        return Tensor(grad), None
+
+def embedding(weight, indices):
+    return EmbeddingOp()(weight, indices)

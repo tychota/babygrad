@@ -741,3 +741,32 @@ class TestGatherBackward:
         result = gather(a, indices, axis=0)
         result.sum().backward()
         np.testing.assert_array_equal(a.grad, [2, 0, 1, 0])
+
+
+# ── Embedding op tests ──────────────────────────────────────────────
+
+
+class TestEmbeddingOpForward:
+    def test_embedding_lookup(self):
+        from babygrad.ops import embedding
+        weight = Tensor([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])
+        indices = Tensor([0, 2, 1])
+        result = embedding(weight, indices)
+        expected = np.array([[0.1, 0.2], [0.5, 0.6], [0.3, 0.4]])
+        np.testing.assert_allclose(result.data, expected, rtol=1e-5)
+    def test_embedding_2d_indices(self):
+        from babygrad.ops import embedding
+        weight = Tensor([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])
+        indices = Tensor([[0, 1], [2, 0]])
+        result = embedding(weight, indices)
+        assert result.shape == (2, 2, 2)
+
+class TestEmbeddingOpBackward:
+    def test_embedding_gradient(self):
+        from babygrad.ops import embedding
+        weight = Tensor([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]], requires_grad=True)
+        indices = Tensor([0, 2, 0])
+        result = embedding(weight, indices)
+        result.sum().backward()
+        expected = np.array([[2, 2], [0, 0], [1, 1]], dtype=np.float32)
+        np.testing.assert_allclose(weight.grad, expected)
