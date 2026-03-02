@@ -402,3 +402,63 @@ class LogSumExp(Function):
 
 def logsumexp(a, axes=None):
     return LogSumExp(axes)(a)
+
+
+class Exp(Function):
+    """Computes e^x element-wise."""
+    def forward(self, a: NDArray):
+        self.out = np.exp(a)
+        return self.out
+    def backward(self, out_grad, node):
+        return out_grad * Tensor(self.out)
+
+def exp(a):
+    return Exp()(a)
+
+
+class Log(Function):
+    """Computes ln(x) element-wise."""
+    def forward(self, a: NDArray):
+        return np.log(a)
+    def backward(self, out_grad, node):
+        a = node._inputs[0]
+        return out_grad / a
+
+def log(a):
+    return Log()(a)
+
+
+class Max(Function):
+    """Computes max along an axis."""
+    def __init__(self, axis=None, keepdims=False):
+        self.axis = axis
+        self.keepdims = keepdims
+    def forward(self, a: NDArray):
+        return np.max(a, axis=self.axis, keepdims=self.keepdims)
+    def backward(self, out_grad, node):
+        a = node._inputs[0]
+        if not self.keepdims and self.axis is not None:
+            expanded = np.expand_dims(out_grad.data, axis=self.axis)
+        elif not self.keepdims and self.axis is None:
+            expanded = out_grad.data.reshape([1] * a.data.ndim)
+        else:
+            expanded = out_grad.data
+        max_val = np.max(a.data, axis=self.axis, keepdims=True)
+        mask = (a.data == max_val).astype(np.float32)
+        mask = mask / np.sum(mask, axis=self.axis, keepdims=True)
+        return Tensor(expanded * mask)
+
+def max(a, axis=None, keepdims=False):
+    return Max(axis, keepdims)(a)
+
+
+def softmax(a, axis=-1):
+    """Numerically stable softmax: exp(x - max) / sum(exp(x - max))."""
+    m = max(a, axis=axis, keepdims=True)
+    shifted = a - m
+    e = exp(shifted)
+    s = summation(e, axes=(axis,))
+    new_shape = list(a.shape)
+    new_shape[axis] = 1
+    s_reshaped = reshape(s, tuple(new_shape))
+    return e / broadcast_to(s_reshaped, a.shape)

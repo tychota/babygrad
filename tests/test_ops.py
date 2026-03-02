@@ -452,3 +452,109 @@ class TestLogSumExpBackward:
         exp_a = np.exp(np.array([[1.0, 2.0, 3.0]]))
         expected = exp_a / np.sum(exp_a, axis=1, keepdims=True)
         np.testing.assert_array_almost_equal(a.grad, expected, decimal=5)
+
+# ── Exp / Log tests ─────────────────────────────────────────────────
+
+
+class TestExpForward:
+    def test_exp_values(self):
+        from babygrad.ops import exp
+        a = Tensor([0.0, 1.0, 2.0])
+        result = exp(a)
+        np.testing.assert_allclose(result.data, np.exp([0.0, 1.0, 2.0]), rtol=1e-5)
+    def test_exp_negative(self):
+        from babygrad.ops import exp
+        a = Tensor([-1.0, -2.0])
+        result = exp(a)
+        np.testing.assert_allclose(result.data, np.exp([-1.0, -2.0]), rtol=1e-5)
+
+class TestExpBackward:
+    def test_exp_gradient(self):
+        from babygrad.ops import exp
+        x_np = np.array([0.0, 1.0, 2.0], dtype=np.float64)
+        a = Tensor(x_np, dtype="float64", requires_grad=True)
+        result = exp(a)
+        result.sum().backward()
+        expected = numerical_grad(lambda x: np.sum(np.exp(x)), x_np)
+        np.testing.assert_allclose(a.grad, expected, rtol=1e-4)
+
+class TestLogForward:
+    def test_log_values(self):
+        from babygrad.ops import log
+        a = Tensor([1.0, 2.0, np.e])
+        result = log(a)
+        np.testing.assert_allclose(result.data, np.log([1.0, 2.0, np.e]), rtol=1e-5)
+
+class TestLogBackward:
+    def test_log_gradient(self):
+        from babygrad.ops import log
+        x_np = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+        a = Tensor(x_np, dtype="float64", requires_grad=True)
+        result = log(a)
+        result.sum().backward()
+        expected = numerical_grad(lambda x: np.sum(np.log(x)), x_np)
+        np.testing.assert_allclose(a.grad, expected, rtol=1e-4)
+
+
+# ── Max tests ────────────────────────────────────────────────────────
+
+
+class TestMaxForward:
+    def test_max_1d(self):
+        from babygrad.ops import max
+        a = Tensor([1.0, 3.0, 2.0])
+        result = max(a)
+        np.testing.assert_allclose(result.data, 3.0)
+    def test_max_2d_axis1(self):
+        from babygrad.ops import max
+        a = Tensor([[1.0, 3.0], [4.0, 2.0]])
+        result = max(a, axis=1)
+        np.testing.assert_allclose(result.data, [3.0, 4.0])
+    def test_max_keepdims(self):
+        from babygrad.ops import max
+        a = Tensor([[1.0, 3.0], [4.0, 2.0]])
+        result = max(a, axis=1, keepdims=True)
+        assert result.shape == (2, 1)
+        np.testing.assert_allclose(result.data, [[3.0], [4.0]])
+
+class TestMaxBackward:
+    def test_max_gradient(self):
+        from babygrad.ops import max
+        x_np = np.array([[1.0, 3.0], [4.0, 2.0]], dtype=np.float32)
+        a = Tensor(x_np, requires_grad=True)
+        result = max(a, axis=1)
+        result.sum().backward()
+        np.testing.assert_allclose(a.grad, [[0, 1], [1, 0]])
+
+
+# ── Softmax tests ───────────────────────────────────────────────────
+
+
+class TestSoftmaxForward:
+    def test_softmax_sums_to_one(self):
+        from babygrad.ops import softmax
+        a = Tensor([[1.0, 2.0, 3.0]])
+        result = softmax(a, axis=1)
+        np.testing.assert_allclose(np.sum(result.data, axis=1), [1.0], rtol=1e-5)
+    def test_softmax_values(self):
+        from babygrad.ops import softmax
+        a = Tensor([[1.0, 2.0, 3.0]])
+        result = softmax(a, axis=1)
+        expected = np.exp([1, 2, 3]) / np.sum(np.exp([1, 2, 3]))
+        np.testing.assert_allclose(result.data[0], expected, rtol=1e-5)
+    def test_softmax_numerical_stability(self):
+        from babygrad.ops import softmax
+        a = Tensor([[1000.0, 1001.0, 1002.0]])
+        result = softmax(a, axis=1)
+        np.testing.assert_allclose(np.sum(result.data, axis=1), [1.0], rtol=1e-5)
+
+class TestSoftmaxBackward:
+    def test_softmax_gradient(self):
+        from babygrad.ops import softmax
+        x_np = np.array([[1.0, 2.0, 3.0]], dtype=np.float32)
+        a = Tensor(x_np, requires_grad=True)
+        result = softmax(a, axis=1)
+        loss = (result * Tensor([[1.0, 0.0, 0.0]])).sum()
+        loss.backward()
+        assert a.grad is not None
+        assert a.grad.shape == (1, 3)
