@@ -611,3 +611,64 @@ class TestSoftmaxBackward:
         loss.backward()
         assert a.grad is not None
         assert a.grad.shape == (1, 3)
+
+
+# ── Where / Tril tests ──────────────────────────────────────────────
+
+
+class TestWhereForward:
+    def test_where_basic(self):
+        from babygrad.ops import where
+        cond = Tensor([1.0, 0.0, 1.0])
+        a = Tensor([10.0, 20.0, 30.0])
+        b = Tensor([1.0, 2.0, 3.0])
+        result = where(cond, a, b)
+        np.testing.assert_array_equal(result.data, [10.0, 2.0, 30.0])
+    def test_where_2d(self):
+        from babygrad.ops import where
+        cond = Tensor([[1.0, 0.0], [0.0, 1.0]])
+        a = Tensor([[10.0, 20.0], [30.0, 40.0]])
+        b = Tensor([[1.0, 2.0], [3.0, 4.0]])
+        result = where(cond, a, b)
+        np.testing.assert_array_equal(result.data, [[10.0, 2.0], [3.0, 40.0]])
+
+class TestWhereBackward:
+    def test_where_gradient(self):
+        from babygrad.ops import where
+        cond = Tensor([1.0, 0.0, 1.0])
+        a = Tensor([10.0, 20.0, 30.0], requires_grad=True)
+        b = Tensor([1.0, 2.0, 3.0], requires_grad=True)
+        result = where(cond, a, b)
+        result.sum().backward()
+        np.testing.assert_array_equal(a.grad, [1.0, 0.0, 1.0])
+        np.testing.assert_array_equal(b.grad, [0.0, 1.0, 0.0])
+
+class TestTrilForward:
+    def test_tril_basic(self):
+        from babygrad.ops import tril
+        a = Tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        result = tril(a)
+        expected = np.array([[1, 0, 0], [4, 5, 0], [7, 8, 9]], dtype=np.float32)
+        np.testing.assert_array_equal(result.data, expected)
+    def test_tril_with_k(self):
+        from babygrad.ops import tril
+        a = Tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        result = tril(a, k=1)
+        expected = np.tril(np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32), k=1)
+        np.testing.assert_array_equal(result.data, expected)
+    def test_tril_batched(self):
+        from babygrad.ops import tril
+        a = Tensor(np.ones((2, 3, 3)))
+        result = tril(a)
+        expected = np.tril(np.ones((2, 3, 3)))
+        np.testing.assert_array_equal(result.data, expected)
+
+class TestTrilBackward:
+    def test_tril_gradient(self):
+        from babygrad.ops import tril
+        x_np = np.ones((3, 3), dtype=np.float32)
+        a = Tensor(x_np, requires_grad=True)
+        result = tril(a)
+        result.sum().backward()
+        expected = np.tril(np.ones((3, 3)))
+        np.testing.assert_array_equal(a.grad, expected)

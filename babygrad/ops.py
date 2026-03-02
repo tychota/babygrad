@@ -474,3 +474,31 @@ def softmax(a, axis=-1):
     new_shape[axis] = 1
     s_reshaped = reshape(s, tuple(new_shape))
     return e / broadcast_to(s_reshaped, a.shape)
+
+
+class Where(Function):
+    """Element-wise conditional: where(cond, a, b)."""
+    def forward(self, cond: NDArray, a: NDArray, b: NDArray):
+        self.cond = cond
+        return np.where(cond, a, b)
+    def backward(self, out_grad, node):
+        cond = self.cond
+        grad_a = out_grad * Tensor(cond.astype(np.float32))
+        grad_b = out_grad * Tensor((1 - cond).astype(np.float32))
+        return None, grad_a, grad_b
+
+def where(cond, a, b):
+    return Where()(cond, a, b)
+
+
+class Tril(Function):
+    """Lower triangular mask."""
+    def __init__(self, k=0):
+        self.k = k
+    def forward(self, a: NDArray):
+        return np.tril(a, k=self.k)
+    def backward(self, out_grad, node):
+        return Tensor(np.tril(out_grad.data, k=self.k))
+
+def tril(a, k=0):
+    return Tril(k)(a)
