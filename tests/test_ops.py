@@ -421,6 +421,29 @@ class TestGELUBackward:
         assert a.grad is not None
         assert a.grad.shape == (3,)
 
+class TestSiLUForward:
+    def test_silu_zero(self):
+        from babygrad.ops import silu
+        a = Tensor([0.0])
+        result = silu(a)
+        np.testing.assert_allclose(result.data, [0.0], atol=1e-5)
+    def test_silu_values(self):
+        from babygrad.ops import silu
+        a = Tensor([1.0, 2.0])
+        result = silu(a)
+        x = np.array([1.0, 2.0])
+        expected = x / (1 + np.exp(-x))
+        np.testing.assert_allclose(result.data, expected, rtol=1e-5)
+
+class TestSiLUBackward:
+    def test_silu_gradient(self):
+        from babygrad.ops import silu
+        x_np = np.array([0.0, 1.0, -1.0], dtype=np.float32)
+        a = Tensor(x_np, requires_grad=True)
+        result = silu(a)
+        result.sum().backward()
+        assert a.grad is not None
+
 
 class TestSqrtForward:
     def test_sqrt_values(self):

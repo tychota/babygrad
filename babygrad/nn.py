@@ -125,6 +125,12 @@ class GELU(Module):
         return ops.gelu(x)
 
 
+class SiLU(Module):
+    """SiLU (Swish) activation module."""
+    def forward(self, x: Tensor) -> Tensor:
+        return ops.silu(x)
+
+
 class Flatten(Module):
     """Flattens a tensor to (batch_size, -1)."""
 

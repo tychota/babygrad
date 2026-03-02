@@ -357,6 +357,11 @@ def gelu(a):
     ))
 
 
+def silu(a):
+    """SiLU activation (Swish): x * sigmoid(x)."""
+    return a * sigmoid(a)
+
+
 class Sqrt(Function):
     """Computes element-wise square root: sqrt(x)."""
     def forward(self, a: NDArray):
