@@ -672,3 +672,72 @@ class TestTrilBackward:
         result.sum().backward()
         expected = np.tril(np.ones((3, 3)))
         np.testing.assert_array_equal(a.grad, expected)
+
+
+# ── Concat / Split / Gather tests ───────────────────────────────────
+
+
+class TestConcatForward:
+    def test_concat_axis0(self):
+        from babygrad.ops import concat
+        a = Tensor([[1.0, 2.0]])
+        b = Tensor([[3.0, 4.0]])
+        result = concat([a, b], axis=0)
+        np.testing.assert_array_equal(result.data, [[1, 2], [3, 4]])
+    def test_concat_axis1(self):
+        from babygrad.ops import concat
+        a = Tensor([[1.0], [2.0]])
+        b = Tensor([[3.0], [4.0]])
+        result = concat([a, b], axis=1)
+        np.testing.assert_array_equal(result.data, [[1, 3], [2, 4]])
+
+class TestConcatBackward:
+    def test_concat_gradient(self):
+        from babygrad.ops import concat
+        a = Tensor([[1.0, 2.0]], requires_grad=True)
+        b = Tensor([[3.0, 4.0]], requires_grad=True)
+        result = concat([a, b], axis=0)
+        result.sum().backward()
+        np.testing.assert_array_equal(a.grad, [[1, 1]])
+        np.testing.assert_array_equal(b.grad, [[1, 1]])
+
+class TestSplitForward:
+    def test_split_equal(self):
+        from babygrad.ops import split
+        a = Tensor([[1.0, 2.0, 3.0, 4.0]])
+        parts = split(a, 2, axis=1)
+        assert len(parts) == 2
+        np.testing.assert_array_equal(parts[0].data, [[1, 2]])
+        np.testing.assert_array_equal(parts[1].data, [[3, 4]])
+
+class TestSplitBackward:
+    def test_split_gradient(self):
+        from babygrad.ops import split
+        a = Tensor([[1.0, 2.0, 3.0, 4.0]], requires_grad=True)
+        parts = split(a, 2, axis=1)
+        loss = parts[0].sum() + parts[1].sum()
+        loss.backward()
+        np.testing.assert_array_equal(a.grad, [[1, 1, 1, 1]])
+
+class TestGatherForward:
+    def test_gather_1d(self):
+        from babygrad.ops import gather
+        a = Tensor([10.0, 20.0, 30.0, 40.0])
+        indices = np.array([0, 2, 3])
+        result = gather(a, indices, axis=0)
+        np.testing.assert_array_equal(result.data, [10, 30, 40])
+    def test_gather_2d_axis0(self):
+        from babygrad.ops import gather
+        a = Tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        indices = np.array([0, 2])
+        result = gather(a, indices, axis=0)
+        np.testing.assert_array_equal(result.data, [[1, 2], [5, 6]])
+
+class TestGatherBackward:
+    def test_gather_gradient(self):
+        from babygrad.ops import gather
+        a = Tensor([10.0, 20.0, 30.0, 40.0], requires_grad=True)
+        indices = np.array([0, 2, 0])
+        result = gather(a, indices, axis=0)
+        result.sum().backward()
+        np.testing.assert_array_equal(a.grad, [2, 0, 1, 0])

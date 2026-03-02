@@ -481,6 +481,7 @@ class Where(Function):
     def forward(self, cond: NDArray, a: NDArray, b: NDArray):
         self.cond = cond
         return np.where(cond, a, b)
+    
     def backward(self, out_grad, node):
         cond = self.cond
         grad_a = out_grad * Tensor(cond.astype(np.float32))
@@ -502,3 +503,74 @@ class Tril(Function):
 
 def tril(a, k=0):
     return Tril(k)(a)
+
+
+class Concat(Function):
+    """Concatenate tensors along an axis."""
+    def __init__(self, axis=0):
+        self.axis = axis
+    def forward(self, *arrays):
+        self.sizes = [a.shape[self.axis] for a in arrays]
+        return np.concatenate(arrays, axis=self.axis)
+    def backward(self, out_grad, node):
+        splits = np.cumsum(self.sizes[:-1])
+        grads = np.split(out_grad.data, splits, axis=self.axis)
+        return tuple(Tensor(g) for g in grads)
+
+def concat(tensors, axis=0):
+    return Concat(axis)(*tensors)
+
+
+class SliceOp(Function):
+    """Internal op for split backward."""
+    def __init__(self, axis, start, stop, original_shape):
+        self.axis = axis
+        self.start = start
+        self.stop = stop
+        self.original_shape = original_shape
+    def forward(self, a: NDArray):
+        raise NotImplementedError
+    def backward(self, out_grad, node):
+        grad = np.zeros(self.original_shape, dtype=np.float32)
+        idx = [slice(None)] * len(self.original_shape)
+        idx[self.axis] = slice(self.start, self.stop)
+        grad[tuple(idx)] = out_grad.data
+        return Tensor(grad)
+
+def split(a, sections, axis=0):
+    size = a.shape[axis]
+    chunk_size = size // sections
+    parts = []
+    for i in range(sections):
+        idx = [slice(None)] * a.data.ndim
+        idx[axis] = slice(i * chunk_size, (i + 1) * chunk_size)
+        sliced_data = a.data[tuple(idx)]
+        t = Tensor(sliced_data, requires_grad=a.requires_grad)
+        if a.requires_grad:
+            t._op = SliceOp(axis, i * chunk_size, (i + 1) * chunk_size, a.shape)
+            t._inputs = [a]
+        parts.append(t)
+    return parts
+
+
+class Gather(Function):
+    """Gather elements along an axis by index."""
+    def __init__(self, axis=0):
+        self.axis = axis
+    def forward(self, a: NDArray, indices: NDArray):
+        self.indices = indices.astype(int)
+        return np.take(a, self.indices, axis=self.axis)
+    def backward(self, out_grad, node):
+        a = node._inputs[0]
+        grad = np.zeros_like(a.data)
+        if self.axis == 0:
+            np.add.at(grad, self.indices, out_grad.data)
+        else:
+            idx = tuple(slice(None) if i != self.axis else self.indices
+                        for i in range(a.data.ndim))
+            np.add.at(grad, idx, out_grad.data)
+        return Tensor(grad), None
+
+def gather(a, indices, axis=0):
+    indices_tensor = Tensor(indices) if not isinstance(indices, Tensor) else indices
+    return Gather(axis)(a, indices_tensor)
