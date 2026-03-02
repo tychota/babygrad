@@ -392,6 +392,36 @@ class TestSigmoidBackward:
         np.testing.assert_array_almost_equal(a.grad, expected, decimal=5)
 
 
+class TestGELUForward:
+    def test_gelu_zero(self):
+        from babygrad.ops import gelu
+        a = Tensor([0.0])
+        result = gelu(a)
+        np.testing.assert_allclose(result.data, [0.0], atol=1e-5)
+    def test_gelu_positive(self):
+        from babygrad.ops import gelu
+        a = Tensor([1.0, 2.0])
+        result = gelu(a)
+        x = np.array([1.0, 2.0])
+        expected = 0.5 * x * (1 + np.tanh(np.sqrt(2 / np.pi) * (x + 0.044715 * x**3)))
+        np.testing.assert_allclose(result.data, expected, rtol=1e-5)
+    def test_gelu_negative_small(self):
+        from babygrad.ops import gelu
+        a = Tensor([-1.0])
+        result = gelu(a)
+        assert result.data[0] < 0
+
+class TestGELUBackward:
+    def test_gelu_gradient(self):
+        from babygrad.ops import gelu
+        x_np = np.array([0.0, 1.0, -1.0], dtype=np.float32)
+        a = Tensor(x_np, requires_grad=True)
+        result = gelu(a)
+        result.sum().backward()
+        assert a.grad is not None
+        assert a.grad.shape == (3,)
+
+
 class TestSqrtForward:
     def test_sqrt_values(self):
         from babygrad.ops import sqrt

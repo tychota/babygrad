@@ -3,7 +3,7 @@ import pytest
 
 from babygrad.tensor import Tensor
 from babygrad.nn import (
-    Parameter, Module, ReLU, Tanh, Sigmoid, Flatten, Linear,
+    Parameter, Module, ReLU, Tanh, Sigmoid, GELU, Flatten, Linear,
     Sequential, Residual, Dropout, LayerNorm1d, BatchNorm1d,
     MSELoss, SoftmaxLoss, CrossEntropyLoss,
 )
@@ -310,6 +310,22 @@ class TestSigmoidLayer:
 
     def test_sigmoid_is_module(self):
         assert isinstance(Sigmoid(), Module)
+
+
+class TestGELUModule:
+    def test_forward(self):
+        from babygrad.ops import gelu
+        layer = GELU()
+        x = Tensor([1.0, 0.0, -1.0])
+        result = layer(x)
+        expected = gelu(x)
+        np.testing.assert_allclose(result.data, expected.data)
+
+    def test_is_module(self):
+        assert isinstance(GELU(), Module)
+
+    def test_no_parameters(self):
+        assert len(GELU().parameters()) == 0
 
 
 class TestFlattenLayer:

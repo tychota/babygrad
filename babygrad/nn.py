@@ -119,6 +119,12 @@ class Sigmoid(Module):
         return ops.sigmoid(x)
 
 
+class GELU(Module):
+    """GELU activation module."""
+    def forward(self, x: Tensor) -> Tensor:
+        return ops.gelu(x)
+
+
 class Flatten(Module):
     """Flattens a tensor to (batch_size, -1)."""
 

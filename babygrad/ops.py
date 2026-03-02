@@ -350,6 +350,13 @@ def sigmoid(a):
     return Sigmoid()(a)
 
 
+def gelu(a):
+    """GELU activation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))."""
+    return a * Tensor(0.5) * (Tensor(1.0) + tanh(
+        Tensor(np.sqrt(2.0 / np.pi)) * (a + Tensor(0.044715) * a ** 3)
+    ))
+
+
 class Sqrt(Function):
     """Computes element-wise square root: sqrt(x)."""
     def forward(self, a: NDArray):
