@@ -6,7 +6,7 @@ from babygrad.nn import (
     Parameter, Module, ReLU, Tanh, Sigmoid, GELU, SiLU, Flatten, Linear,
     Sequential, Residual, Dropout, LayerNorm1d, BatchNorm1d,
     MSELoss, SoftmaxLoss, CrossEntropyLoss,
-    Embedding,
+    Embedding, RMSNorm,
 )
 
 
@@ -930,3 +930,40 @@ class TestEmbeddingModule:
         loss = summation(result)
         loss.backward()
         assert emb.weight.grad is not None
+
+
+class TestRMSNorm:
+    def test_output_shape(self):
+        norm = RMSNorm(dim=4)
+        x = Tensor(np.random.randn(2, 4).astype(np.float32))
+        result = norm(x)
+        assert result.shape == (2, 4)
+
+    def test_rms_normalized(self):
+        norm = RMSNorm(dim=4, eps=1e-5)
+        x = Tensor(np.array([[1.0, 2.0, 3.0, 4.0]], dtype=np.float32))
+        result = norm(x)
+        rms = np.sqrt(np.mean(result.data ** 2, axis=-1))
+        np.testing.assert_allclose(rms, [1.0], atol=1e-4)
+
+    def test_has_weight_parameter(self):
+        norm = RMSNorm(dim=8)
+        params = norm.parameters()
+        assert len(params) == 1
+        assert params[0].shape == (8,)
+
+    def test_weight_initialized_to_ones(self):
+        norm = RMSNorm(dim=4)
+        np.testing.assert_array_equal(norm.weight.data, [1, 1, 1, 1])
+
+    def test_is_module(self):
+        assert isinstance(RMSNorm(4), Module)
+
+    def test_backward(self):
+        from babygrad.ops import summation
+        norm = RMSNorm(dim=4)
+        x = Tensor(np.random.randn(2, 4).astype(np.float32), requires_grad=True)
+        result = norm(x)
+        loss = summation(result)
+        loss.backward()
+        assert x.grad is not None

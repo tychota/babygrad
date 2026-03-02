@@ -292,6 +292,24 @@ class BatchNorm1d(Module):
                      + ops.broadcast_to(bias_reshaped, x.shape)
 
 
+class RMSNorm(Module):
+    """Root Mean Square Layer Normalization (no bias, no mean centering)."""
+    def __init__(self, dim: int, eps: float = 1e-5):
+        super().__init__()
+        self.dim = dim
+        self.eps = eps
+        self.weight = Parameter(Tensor(np.ones(dim).astype(np.float32)))
+
+    def forward(self, x: Tensor) -> Tensor:
+        # RMS = sqrt(mean(x^2) + eps)
+        rms = ops.sqrt(ops.summation(x ** 2, axes=(-1,)) / self.dim + self.eps)
+        rms_reshaped = ops.reshape(rms, (*x.shape[:-1], 1))
+        rms_broadcasted = ops.broadcast_to(rms_reshaped, x.shape)
+        x_normed = x / rms_broadcasted
+        weight_reshaped = ops.reshape(self.weight, (1,) * (x.data.ndim - 1) + (self.dim,))
+        return ops.broadcast_to(weight_reshaped, x.shape) * x_normed
+
+
 class MSELoss(Module):
     def forward(self, pred: Tensor, target: Tensor) -> Tensor:
         """Calculates the Mean Squared Error."""
