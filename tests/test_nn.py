@@ -6,7 +6,7 @@ from babygrad.nn import (
     Parameter, Module, ReLU, Tanh, Sigmoid, GELU, SiLU, Flatten, Linear,
     Sequential, Residual, Dropout, LayerNorm1d, BatchNorm1d,
     MSELoss, SoftmaxLoss, CrossEntropyLoss,
-    Embedding, RMSNorm,
+    Embedding, RMSNorm, SwiGLU,
 )
 
 
@@ -966,4 +966,27 @@ class TestRMSNorm:
         result = norm(x)
         loss = summation(result)
         loss.backward()
+        assert x.grad is not None
+
+
+class TestSwiGLU:
+    def test_output_shape(self):
+        ffn = SwiGLU(dim=8, hidden_dim=16)
+        x = Tensor(np.random.randn(2, 8).astype(np.float32))
+        result = ffn(x)
+        assert result.shape == (2, 8)
+
+    def test_has_parameters(self):
+        ffn = SwiGLU(dim=8, hidden_dim=16)
+        params = ffn.parameters()
+        assert len(params) == 3  # w1, w2, w3
+
+    def test_is_module(self):
+        assert isinstance(SwiGLU(8, 16), Module)
+
+    def test_backward(self):
+        ffn = SwiGLU(dim=4, hidden_dim=8)
+        x = Tensor(np.random.randn(2, 4).astype(np.float32), requires_grad=True)
+        result = ffn(x)
+        result.sum().backward()
         assert x.grad is not None

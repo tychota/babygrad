@@ -382,3 +382,15 @@ class Embedding(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return ops.embedding(self.weight, x)
+
+
+class SwiGLU(Module):
+    """SwiGLU feed-forward: SiLU(xW1) * (xW2), then project down with W3."""
+    def __init__(self, dim: int, hidden_dim: int):
+        super().__init__()
+        self.w1 = Linear(dim, hidden_dim, bias=False)
+        self.w2 = Linear(dim, hidden_dim, bias=False)
+        self.w3 = Linear(hidden_dim, dim, bias=False)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.w3(ops.silu(self.w1(x)) * self.w2(x))
