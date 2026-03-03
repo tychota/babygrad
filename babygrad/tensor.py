@@ -183,6 +183,9 @@ class Tensor:
 
     def reshape(self, *shape, **kwargs):
         from .ops import reshape
+        # Handle both tensor.reshape(2, 3) and tensor.reshape((2, 3))
+        if len(shape) == 1 and isinstance(shape[0], (tuple, list)):
+            shape = tuple(shape[0])
         return reshape(self, shape)
 
     def broadcast_to(self, shape):
