@@ -1313,3 +1313,43 @@ class TestModuleStateDict:
         m.load_state_dict({"w": np.array([3.0, 4.0], dtype=np.float32)})
         assert m.w is original_tensor
         np.testing.assert_array_equal(m.w.data, [3.0, 4.0])
+
+    def test_load_state_dict_recurses_into_child_modules(self):
+        """load_state_dict restores nested module parameters."""
+        class Child(Module):
+            def __init__(self):
+                super().__init__()
+                self.w = Parameter(Tensor([0.0, 0.0]))
+            def forward(self, x): return x
+
+        class Parent(Module):
+            def __init__(self):
+                super().__init__()
+                self.child = Child()
+            def forward(self, x): return x
+
+        m = Parent()
+        m.load_state_dict({"child.w": np.array([5.0, 6.0], dtype=np.float32)})
+        np.testing.assert_array_equal(m.child.w.data, [5.0, 6.0])
+
+    def test_load_state_dict_handles_list_of_modules(self):
+        """load_state_dict restores params in list of Modules."""
+        class Child(Module):
+            def __init__(self):
+                super().__init__()
+                self.w = Parameter(Tensor([0.0]))
+            def forward(self, x): return x
+
+        class Parent(Module):
+            def __init__(self):
+                super().__init__()
+                self.layers = [Child(), Child()]
+            def forward(self, x): return x
+
+        m = Parent()
+        m.load_state_dict({
+            "layers.0.w": np.array([7.0], dtype=np.float32),
+            "layers.1.w": np.array([8.0], dtype=np.float32),
+        })
+        np.testing.assert_array_equal(m.layers[0].w.data, [7.0])
+        np.testing.assert_array_equal(m.layers[1].w.data, [8.0])

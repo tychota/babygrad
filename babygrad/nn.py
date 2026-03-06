@@ -124,6 +124,24 @@ class Module:
                             f"expected {value.shape}, got {state_dict[key].shape}"
                         )
                     value.data = state_dict[key]
+            elif isinstance(value, Module):
+                prefix = f"{key}."
+                child_sd = {
+                    k[len(prefix):]: v
+                    for k, v in state_dict.items()
+                    if k.startswith(prefix)
+                }
+                value.load_state_dict(child_sd)
+            elif isinstance(value, (list, tuple)):
+                for i, item in enumerate(value):
+                    if isinstance(item, Module):
+                        prefix = f"{key}.{i}."
+                        child_sd = {
+                            k[len(prefix):]: v
+                            for k, v in state_dict.items()
+                            if k.startswith(prefix)
+                        }
+                        item.load_state_dict(child_sd)
 
     def save(self, filename):
         """Save model state to an npz file."""
