@@ -113,6 +113,18 @@ class Module:
                             state[f"{key}.{i}.{child_key}"] = v
         return state
 
+    def load_state_dict(self, state_dict):
+        """Load parameters from a flat dict of {name: np.ndarray}."""
+        for key, value in self.__dict__.items():
+            if isinstance(value, Tensor):
+                if key in state_dict:
+                    if value.shape != state_dict[key].shape:
+                        raise ValueError(
+                            f"Shape mismatch for {key}: "
+                            f"expected {value.shape}, got {state_dict[key].shape}"
+                        )
+                    value.data = state_dict[key]
+
     def save(self, filename):
         """Save model state to an npz file."""
         np.savez(filename, **self.state_dict())

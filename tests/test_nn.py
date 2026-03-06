@@ -1275,3 +1275,41 @@ class TestModuleStateDict:
         loaded = np.load(str(path))
         sd = layer.state_dict()
         assert set(loaded.files) == set(sd.keys())
+
+    def test_load_state_dict_restores_parameters(self):
+        """load_state_dict overwrites parameter data from a dict."""
+        class M(Module):
+            def __init__(self):
+                super().__init__()
+                self.w = Parameter(Tensor([0.0, 0.0]))
+            def forward(self, x): return x
+
+        m = M()
+        m.load_state_dict({"w": np.array([3.0, 4.0], dtype=np.float32)})
+        np.testing.assert_array_equal(m.w.data, [3.0, 4.0])
+
+    def test_load_state_dict_shape_mismatch_raises(self):
+        """load_state_dict raises ValueError on shape mismatch."""
+        class M(Module):
+            def __init__(self):
+                super().__init__()
+                self.w = Parameter(Tensor([0.0, 0.0]))
+            def forward(self, x): return x
+
+        m = M()
+        with pytest.raises(ValueError, match="Shape mismatch"):
+            m.load_state_dict({"w": np.array([1.0, 2.0, 3.0], dtype=np.float32)})
+
+    def test_load_state_dict_does_not_replace_tensor_object(self):
+        """load_state_dict updates .data in place, doesn't replace the Tensor."""
+        class M(Module):
+            def __init__(self):
+                super().__init__()
+                self.w = Parameter(Tensor([0.0, 0.0]))
+            def forward(self, x): return x
+
+        m = M()
+        original_tensor = m.w
+        m.load_state_dict({"w": np.array([3.0, 4.0], dtype=np.float32)})
+        assert m.w is original_tensor
+        np.testing.assert_array_equal(m.w.data, [3.0, 4.0])
