@@ -440,3 +440,31 @@ class MultiHeadAttention(Module):
         out = attn @ v  # (B, H, L, head_dim)
         out = out.transpose((0, 2, 1, 3)).reshape(B, L, D)  # (B, L, D)
         return self.out_proj(out)
+
+
+class RotaryPositionEmbedding(Module):
+    """Rotary Position Embedding (RoPE). Operates on (batch, num_heads, seq_len, head_dim)."""
+    def __init__(self, dim: int, base: float = 10000.0):
+        super().__init__()
+        self.dim = dim
+        self.base = base
+
+    def forward(self, x: Tensor, seq_len: int) -> Tensor:
+        half_dim = self.dim // 2
+        freqs = 1.0 / (self.base ** (np.arange(0, half_dim, dtype=np.float32) / half_dim))
+        positions = np.arange(seq_len, dtype=np.float32)
+        angles = np.outer(positions, freqs)  # (seq_len, half_dim)
+        cos_vals = np.cos(angles)
+        sin_vals = np.sin(angles)
+
+        # x shape: (B, H, L, D)
+        x1_data = x.data[..., :half_dim]
+        x2_data = x.data[..., half_dim:]
+
+        cos_b = cos_vals[np.newaxis, np.newaxis, :, :]
+        sin_b = sin_vals[np.newaxis, np.newaxis, :, :]
+
+        out1 = x1_data * cos_b - x2_data * sin_b
+        out2 = x1_data * sin_b + x2_data * cos_b
+
+        return Tensor(np.concatenate([out1, out2], axis=-1).astype(np.float32))

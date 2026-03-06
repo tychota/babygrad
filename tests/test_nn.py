@@ -6,7 +6,7 @@ from babygrad.nn import (
     Parameter, Module, ReLU, Tanh, Sigmoid, GELU, SiLU, Flatten, Linear,
     Sequential, Residual, Dropout, LayerNorm1d, BatchNorm1d,
     MSELoss, SoftmaxLoss, CrossEntropyLoss,
-    Embedding, RMSNorm, SwiGLU, MultiHeadAttention,
+    Embedding, RMSNorm, SwiGLU, MultiHeadAttention, RotaryPositionEmbedding,
 )
 
 
@@ -1027,3 +1027,20 @@ class TestMultiHeadAttention:
         r1 = mha(x)
         r2 = mha(x)
         np.testing.assert_allclose(r1.data, r2.data)
+
+
+class TestRotaryPositionEmbedding:
+    def test_output_shape_unchanged(self):
+        rope = RotaryPositionEmbedding(dim=8)
+        q = Tensor(np.random.randn(1, 4, 2, 8).astype(np.float32))  # (B, H, L, D)
+        result = rope(q, seq_len=2)
+        assert result.shape == q.shape
+
+    def test_different_positions_give_different_outputs(self):
+        rope = RotaryPositionEmbedding(dim=8)
+        q = Tensor(np.ones((1, 1, 3, 8), dtype=np.float32))
+        result = rope(q, seq_len=3)
+        assert not np.allclose(result.data[0, 0, 0], result.data[0, 0, 1])
+
+    def test_is_module(self):
+        assert isinstance(RotaryPositionEmbedding(8), Module)
