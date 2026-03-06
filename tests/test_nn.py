@@ -6,7 +6,7 @@ from babygrad.nn import (
     Parameter, Module, ReLU, Tanh, Sigmoid, GELU, SiLU, Flatten, Linear,
     Sequential, Residual, Dropout, LayerNorm1d, BatchNorm1d,
     MSELoss, SoftmaxLoss, CrossEntropyLoss,
-    Embedding, RMSNorm, SwiGLU,
+    Embedding, RMSNorm, SwiGLU, MultiHeadAttention,
 )
 
 
@@ -990,3 +990,40 @@ class TestSwiGLU:
         result = ffn(x)
         result.sum().backward()
         assert x.grad is not None
+
+
+class TestMultiHeadAttention:
+    def test_output_shape(self):
+        mha = MultiHeadAttention(embed_dim=32, num_heads=4)
+        x = Tensor(np.random.randn(2, 10, 32).astype(np.float32))
+        result = mha(x)
+        assert result.shape == (2, 10, 32)
+
+    def test_causal_mask(self):
+        mha = MultiHeadAttention(embed_dim=8, num_heads=2, causal=True)
+        x = Tensor(np.random.randn(1, 4, 8).astype(np.float32))
+        result = mha(x)
+        assert result.shape == (1, 4, 8)
+
+    def test_has_parameters(self):
+        mha = MultiHeadAttention(embed_dim=16, num_heads=4)
+        params = mha.parameters()
+        assert len(params) >= 4
+
+    def test_is_module(self):
+        assert isinstance(MultiHeadAttention(16, 4), Module)
+
+    def test_backward(self):
+        mha = MultiHeadAttention(embed_dim=8, num_heads=2)
+        x = Tensor(np.random.randn(1, 3, 8).astype(np.float32), requires_grad=True)
+        result = mha(x)
+        result.sum().backward()
+        assert x.grad is not None
+
+    def test_dropout_in_eval(self):
+        mha = MultiHeadAttention(embed_dim=8, num_heads=2, dropout=0.5)
+        mha.eval()
+        x = Tensor(np.random.randn(1, 3, 8).astype(np.float32))
+        r1 = mha(x)
+        r2 = mha(x)
+        np.testing.assert_allclose(r1.data, r2.data)

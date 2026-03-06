@@ -394,3 +394,49 @@ class SwiGLU(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return self.w3(ops.silu(self.w1(x)) * self.w2(x))
+
+
+class MultiHeadAttention(Module):
+    """Multi-Head Attention with optional causal masking."""
+    def __init__(self, embed_dim: int, num_heads: int, dropout: float = 0.0, causal: bool = False):
+        super().__init__()
+        assert embed_dim % num_heads == 0
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.head_dim = embed_dim // num_heads
+        self.causal = causal
+
+        self.q_proj = Linear(embed_dim, embed_dim, bias=False)
+        self.k_proj = Linear(embed_dim, embed_dim, bias=False)
+        self.v_proj = Linear(embed_dim, embed_dim, bias=False)
+        self.out_proj = Linear(embed_dim, embed_dim, bias=False)
+        self.attn_dropout = Dropout(dropout)
+
+    def forward(self, x: Tensor) -> Tensor:
+        B, L, D = x.shape
+
+        q = self.q_proj(x)  # (B, L, D)
+        k = self.k_proj(x)
+        v = self.v_proj(x)
+
+        # Reshape to (B, L, num_heads, head_dim) then transpose to (B, num_heads, L, head_dim)
+        q = q.reshape(B, L, self.num_heads, self.head_dim).transpose((0, 2, 1, 3))
+        k = k.reshape(B, L, self.num_heads, self.head_dim).transpose((0, 2, 1, 3))
+        v = v.reshape(B, L, self.num_heads, self.head_dim).transpose((0, 2, 1, 3))
+
+        # Scaled dot-product attention
+        scale = Tensor(np.float32(self.head_dim ** -0.5))
+        scores = (q @ k.transpose((0, 1, 3, 2))) * scale  # (B, H, L, L)
+
+        if self.causal:
+            mask = np.tril(np.ones((L, L), dtype=np.float32))
+            mask_tensor = Tensor(mask)
+            neg_inf = Tensor(np.full_like(scores.data, -1e9))
+            scores = ops.where(mask_tensor, scores, neg_inf)
+
+        attn = ops.softmax(scores, axis=-1)  # (B, H, L, L)
+        attn = self.attn_dropout(attn)
+
+        out = attn @ v  # (B, H, L, head_dim)
+        out = out.transpose((0, 2, 1, 3)).reshape(B, L, D)  # (B, L, D)
+        return self.out_proj(out)
