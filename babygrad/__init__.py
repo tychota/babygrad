@@ -4,8 +4,11 @@ from babygrad.nn import (
     Linear, Sequential, Residual, Dropout,
     LayerNorm1d, BatchNorm1d, MSELoss, SoftmaxLoss,
     CrossEntropyLoss,
+    Embedding, RMSNorm, GELU, SiLU, SwiGLU,
+    MultiHeadAttention, GroupedQueryAttention,
+    RotaryPositionEmbedding, TransformerBlock, Transformer,
 )
-from babygrad.optim import Optimizer, SGD
+from babygrad.optim import Optimizer, SGD, Adam, clip_grad_norm, CosineScheduler
 from babygrad.data import Dataset, MNISTDataset, DataLoader, parse_mnist
 
 __all__ = [
@@ -14,6 +17,9 @@ __all__ = [
     "Linear", "Sequential", "Residual", "Dropout",
     "LayerNorm1d", "BatchNorm1d", "MSELoss", "SoftmaxLoss",
     "CrossEntropyLoss",
-    "Optimizer", "SGD",
+    "Embedding", "RMSNorm", "GELU", "SiLU", "SwiGLU",
+    "MultiHeadAttention", "GroupedQueryAttention",
+    "RotaryPositionEmbedding", "TransformerBlock", "Transformer",
+    "Optimizer", "SGD", "Adam", "clip_grad_norm", "CosineScheduler",
     "Dataset", "MNISTDataset", "DataLoader", "parse_mnist",
 ]
