@@ -1241,3 +1241,21 @@ class TestModuleStateDict:
         assert "modules.2.bias" in sd
         # ReLU has no parameters, so no modules.1.* keys
         assert not any(k.startswith("modules.1.") for k in sd)
+
+    def test_state_dict_linear_layer(self):
+        """Linear layer state_dict has weight and bias."""
+        layer = Linear(3, 5)
+        sd = layer.state_dict()
+        assert "weight" in sd
+        assert "bias" in sd
+        assert sd["weight"].shape == (3, 5)
+        assert sd["bias"].shape == (1, 5)
+
+    def test_state_dict_batchnorm_includes_running_stats(self):
+        """BatchNorm state_dict includes running_mean and running_var."""
+        bn = BatchNorm1d(4)
+        sd = bn.state_dict()
+        assert "weight" in sd
+        assert "bias" in sd
+        assert "running_mean" in sd
+        assert "running_var" in sd
