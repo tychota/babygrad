@@ -97,6 +97,14 @@ class Module:
         for m in _get_modules(self.__dict__):
             m.training = False
 
+    def state_dict(self):
+        """Returns a flat dict mapping dotted parameter paths to numpy arrays."""
+        state = {}
+        for key, value in self.__dict__.items():
+            if isinstance(value, Tensor):
+                state[key] = value.data
+        return state
+
 
 class ReLU(Module):
     """Applies ReLU element-wise."""

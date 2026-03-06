@@ -1125,3 +1125,66 @@ class TestTransformer:
         result.sum().backward()
         params = model.parameters()
         assert any(p.grad is not None for p in params)
+
+
+# ── State Dict ─────────────────────────────────────────────────────
+
+
+class TestModuleStateDict:
+    """Tests for Module.state_dict() and load_state_dict()."""
+
+    def test_state_dict_returns_tensor_data(self):
+        """state_dict returns {name: np.ndarray} for direct Tensor/Parameter attrs."""
+        class M(Module):
+            def __init__(self):
+                super().__init__()
+                self.weight = Parameter(Tensor([1.0, 2.0, 3.0]))
+                self.bias = Parameter(Tensor([0.5]))
+            def forward(self, x): return x
+
+        m = M()
+        sd = m.state_dict()
+        assert "weight" in sd
+        assert "bias" in sd
+        np.testing.assert_array_equal(sd["weight"], [1.0, 2.0, 3.0])
+        np.testing.assert_array_equal(sd["bias"], [0.5])
+
+    def test_state_dict_returns_numpy_arrays(self):
+        """state_dict values are raw numpy arrays, not Tensor objects."""
+        class M(Module):
+            def __init__(self):
+                super().__init__()
+                self.w = Parameter(Tensor([1.0]))
+            def forward(self, x): return x
+
+        m = M()
+        sd = m.state_dict()
+        assert isinstance(sd["w"], np.ndarray)
+
+    def test_state_dict_includes_plain_tensors(self):
+        """state_dict includes plain Tensors (e.g. running_mean in BatchNorm)."""
+        class M(Module):
+            def __init__(self):
+                super().__init__()
+                self.running_mean = Tensor([0.0, 0.0])
+            def forward(self, x): return x
+
+        m = M()
+        sd = m.state_dict()
+        assert "running_mean" in sd
+
+    def test_state_dict_skips_non_tensor_attrs(self):
+        """state_dict ignores int, float, bool, string attributes."""
+        class M(Module):
+            def __init__(self):
+                super().__init__()
+                self.dim = 10
+                self.eps = 1e-5
+                self.w = Parameter(Tensor([1.0]))
+            def forward(self, x): return x
+
+        m = M()
+        sd = m.state_dict()
+        assert "dim" not in sd
+        assert "eps" not in sd
+        assert "w" in sd
