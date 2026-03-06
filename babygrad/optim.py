@@ -1,3 +1,6 @@
+import numpy as np
+
+
 class Optimizer:
     def __init__(self, params):
         self.params = params
@@ -47,3 +50,18 @@ class Adam(Optimizer):
                 mt_hat = mt / (1 - self.beta1 ** self.t)
                 vt_hat = vt / (1 - self.beta2 ** self.t)
                 param.data -= self.lr * mt_hat / (vt_hat ** 0.5 + self.eps)
+
+
+def clip_grad_norm(params, max_norm):
+    """Clip gradient norm across all parameters. Returns the total norm."""
+    total_norm_sq = 0.0
+    for p in params:
+        if p.grad is not None:
+            total_norm_sq += np.sum(p.grad ** 2)
+    total_norm = float(np.sqrt(total_norm_sq))
+    if total_norm > max_norm:
+        scale = max_norm / total_norm
+        for p in params:
+            if p.grad is not None:
+                p.grad = p.grad * scale
+    return total_norm

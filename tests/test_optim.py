@@ -1,7 +1,8 @@
 import pytest
 import numpy as np
 from babygrad import Tensor
-from babygrad.optim import Optimizer, SGD, Adam
+from babygrad.optim import Optimizer, SGD, Adam, clip_grad_norm
+from babygrad.nn import Parameter
 
 
 # ── Optimizer base class ──
@@ -241,3 +242,33 @@ def test_adam_full_loop():
     w.grad = np.array([1.0])
     opt.step()
     assert w.data[0] < after_step1[0]
+
+
+# ── clip_grad_norm ──
+
+
+class TestClipGradNorm:
+    def test_clips_when_exceeding(self):
+        p = Parameter(Tensor([1.0, 2.0]))
+        p.grad = np.array([3.0, 4.0])  # norm = 5
+        clip_grad_norm([p], max_norm=2.5)
+        norm = np.linalg.norm(p.grad)
+        np.testing.assert_allclose(norm, 2.5, rtol=1e-5)
+
+    def test_no_clip_when_within(self):
+        p = Parameter(Tensor([0.1, 0.2]))
+        p.grad = np.array([0.1, 0.2])
+        original = p.grad.copy()
+        clip_grad_norm([p], max_norm=10.0)
+        np.testing.assert_array_equal(p.grad, original)
+
+    def test_skips_none_grad(self):
+        p = Parameter(Tensor([1.0]))
+        p.grad = None
+        clip_grad_norm([p], max_norm=1.0)  # should not raise
+
+    def test_returns_total_norm(self):
+        p = Parameter(Tensor([3.0, 4.0]))
+        p.grad = np.array([3.0, 4.0])
+        norm = clip_grad_norm([p], max_norm=10.0)
+        np.testing.assert_allclose(norm, 5.0, rtol=1e-5)
