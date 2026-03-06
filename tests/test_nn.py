@@ -1188,3 +1188,24 @@ class TestModuleStateDict:
         assert "dim" not in sd
         assert "eps" not in sd
         assert "w" in sd
+
+    def test_state_dict_recurses_into_child_modules(self):
+        """state_dict flattens child module params with dot notation."""
+        class Child(Module):
+            def __init__(self):
+                super().__init__()
+                self.w = Parameter(Tensor([1.0, 2.0]))
+            def forward(self, x): return x
+
+        class Parent(Module):
+            def __init__(self):
+                super().__init__()
+                self.child = Child()
+                self.own = Parameter(Tensor([9.0]))
+            def forward(self, x): return x
+
+        m = Parent()
+        sd = m.state_dict()
+        assert "own" in sd
+        assert "child.w" in sd
+        np.testing.assert_array_equal(sd["child.w"], [1.0, 2.0])

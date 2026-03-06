@@ -103,6 +103,9 @@ class Module:
         for key, value in self.__dict__.items():
             if isinstance(value, Tensor):
                 state[key] = value.data
+            elif isinstance(value, Module):
+                for child_key, v in value.state_dict().items():
+                    state[f"{key}.{child_key}"] = v
         return state
 
 
