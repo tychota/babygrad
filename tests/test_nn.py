@@ -1209,3 +1209,35 @@ class TestModuleStateDict:
         assert "own" in sd
         assert "child.w" in sd
         np.testing.assert_array_equal(sd["child.w"], [1.0, 2.0])
+
+    def test_state_dict_handles_list_of_modules(self):
+        """state_dict recurses into lists of Modules with index in key."""
+        class Child(Module):
+            def __init__(self, val):
+                super().__init__()
+                self.w = Parameter(Tensor([val]))
+            def forward(self, x): return x
+
+        class Parent(Module):
+            def __init__(self):
+                super().__init__()
+                self.layers = [Child(1.0), Child(2.0)]
+            def forward(self, x): return x
+
+        m = Parent()
+        sd = m.state_dict()
+        assert "layers.0.w" in sd
+        assert "layers.1.w" in sd
+        np.testing.assert_array_equal(sd["layers.0.w"], [1.0])
+        np.testing.assert_array_equal(sd["layers.1.w"], [2.0])
+
+    def test_state_dict_handles_tuple_of_modules(self):
+        """state_dict works with tuples (e.g. Sequential.modules)."""
+        model = Sequential(Linear(2, 3), ReLU(), Linear(3, 1))
+        sd = model.state_dict()
+        assert "modules.0.weight" in sd
+        assert "modules.0.bias" in sd
+        assert "modules.2.weight" in sd
+        assert "modules.2.bias" in sd
+        # ReLU has no parameters, so no modules.1.* keys
+        assert not any(k.startswith("modules.1.") for k in sd)

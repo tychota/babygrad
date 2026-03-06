@@ -106,6 +106,11 @@ class Module:
             elif isinstance(value, Module):
                 for child_key, v in value.state_dict().items():
                     state[f"{key}.{child_key}"] = v
+            elif isinstance(value, (list, tuple)):
+                for i, item in enumerate(value):
+                    if isinstance(item, Module):
+                        for child_key, v in item.state_dict().items():
+                            state[f"{key}.{i}.{child_key}"] = v
         return state
 
 
