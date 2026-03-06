@@ -1353,3 +1353,39 @@ class TestModuleStateDict:
         })
         np.testing.assert_array_equal(m.layers[0].w.data, [7.0])
         np.testing.assert_array_equal(m.layers[1].w.data, [8.0])
+
+    def test_load_restores_from_npz_file(self, tmp_path):
+        """Full round-trip: save then load restores exact weights."""
+        model = Sequential(Linear(3, 5), ReLU(), Linear(5, 2))
+        original_sd = {k: v.copy() for k, v in model.state_dict().items()}
+
+        path = tmp_path / "model.npz"
+        model.save(str(path))
+
+        # Create fresh model and load
+        model2 = Sequential(Linear(3, 5), ReLU(), Linear(5, 2))
+        model2.load(str(path))
+
+        for key in original_sd:
+            np.testing.assert_array_equal(
+                model2.state_dict()[key], original_sd[key]
+            )
+
+    def test_save_load_roundtrip_batchnorm(self, tmp_path):
+        """Round-trip preserves BatchNorm running stats."""
+        bn = BatchNorm1d(4)
+        # Run a forward pass to update running stats
+        x = Tensor(np.random.randn(3, 4).astype(np.float32))
+        bn(x)
+        original_sd = {k: v.copy() for k, v in bn.state_dict().items()}
+
+        path = tmp_path / "bn.npz"
+        bn.save(str(path))
+
+        bn2 = BatchNorm1d(4)
+        bn2.load(str(path))
+
+        for key in original_sd:
+            np.testing.assert_array_almost_equal(
+                bn2.state_dict()[key], original_sd[key]
+            )

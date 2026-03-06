@@ -147,6 +147,11 @@ class Module:
         """Save model state to an npz file."""
         np.savez(filename, **self.state_dict())
 
+    def load(self, filename):
+        """Load model state from an npz file."""
+        data = np.load(filename)
+        self.load_state_dict(dict(data))
+
 
 class ReLU(Module):
     """Applies ReLU element-wise."""
