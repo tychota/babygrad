@@ -468,3 +468,56 @@ class RotaryPositionEmbedding(Module):
         out2 = x1_data * sin_b + x2_data * cos_b
 
         return Tensor(np.concatenate([out1, out2], axis=-1).astype(np.float32))
+
+
+class GroupedQueryAttention(Module):
+    """Grouped-Query Attention: fewer KV heads shared across Q head groups."""
+    def __init__(self, embed_dim: int, num_heads: int, num_kv_heads: int,
+                 dropout: float = 0.0, causal: bool = False):
+        super().__init__()
+        assert embed_dim % num_heads == 0
+        assert num_heads % num_kv_heads == 0
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
+        self.head_dim = embed_dim // num_heads
+        self.num_groups = num_heads // num_kv_heads
+        self.causal = causal
+
+        self.q_proj = Linear(embed_dim, embed_dim, bias=False)
+        self.k_proj = Linear(embed_dim, num_kv_heads * self.head_dim, bias=False)
+        self.v_proj = Linear(embed_dim, num_kv_heads * self.head_dim, bias=False)
+        self.out_proj = Linear(embed_dim, embed_dim, bias=False)
+        self.attn_dropout = Dropout(dropout)
+
+    def forward(self, x: Tensor) -> Tensor:
+        B, L, D = x.shape
+
+        q = self.q_proj(x).reshape(B, L, self.num_heads, self.head_dim).transpose((0, 2, 1, 3))
+        k = self.k_proj(x).reshape(B, L, self.num_kv_heads, self.head_dim).transpose((0, 2, 1, 3))
+        v = self.v_proj(x).reshape(B, L, self.num_kv_heads, self.head_dim).transpose((0, 2, 1, 3))
+
+        # Repeat KV heads: (B, kv, L, D) -> (B, kv, groups, L, D) -> (B, H, L, D)
+        k = k.reshape(B, self.num_kv_heads, 1, L, self.head_dim)
+        k = k.broadcast_to((B, self.num_kv_heads, self.num_groups, L, self.head_dim))
+        k = k.reshape(B, self.num_heads, L, self.head_dim)
+
+        v = v.reshape(B, self.num_kv_heads, 1, L, self.head_dim)
+        v = v.broadcast_to((B, self.num_kv_heads, self.num_groups, L, self.head_dim))
+        v = v.reshape(B, self.num_heads, L, self.head_dim)
+
+        scale = Tensor(np.float32(self.head_dim ** -0.5))
+        scores = (q @ k.transpose((0, 1, 3, 2))) * scale
+
+        if self.causal:
+            mask = np.tril(np.ones((L, L), dtype=np.float32))
+            mask_tensor = Tensor(mask)
+            neg_inf = Tensor(np.full_like(scores.data, -1e9))
+            scores = ops.where(mask_tensor, scores, neg_inf)
+
+        attn = ops.softmax(scores, axis=-1)
+        attn = self.attn_dropout(attn)
+
+        out = attn @ v
+        out = out.transpose((0, 2, 1, 3)).reshape(B, L, D)
+        return self.out_proj(out)

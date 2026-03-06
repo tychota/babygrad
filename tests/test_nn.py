@@ -7,6 +7,7 @@ from babygrad.nn import (
     Sequential, Residual, Dropout, LayerNorm1d, BatchNorm1d,
     MSELoss, SoftmaxLoss, CrossEntropyLoss,
     Embedding, RMSNorm, SwiGLU, MultiHeadAttention, RotaryPositionEmbedding,
+    GroupedQueryAttention,
 )
 
 
@@ -1044,3 +1045,38 @@ class TestRotaryPositionEmbedding:
 
     def test_is_module(self):
         assert isinstance(RotaryPositionEmbedding(8), Module)
+
+
+class TestGroupedQueryAttention:
+    def test_output_shape(self):
+        gqa = GroupedQueryAttention(embed_dim=32, num_heads=8, num_kv_heads=2)
+        x = Tensor(np.random.randn(2, 10, 32).astype(np.float32))
+        result = gqa(x)
+        assert result.shape == (2, 10, 32)
+
+    def test_num_kv_heads_divides_num_heads(self):
+        gqa = GroupedQueryAttention(embed_dim=16, num_heads=4, num_kv_heads=2)
+        x = Tensor(np.random.randn(1, 5, 16).astype(np.float32))
+        result = gqa(x)
+        assert result.shape == (1, 5, 16)
+
+    def test_has_parameters(self):
+        gqa = GroupedQueryAttention(embed_dim=16, num_heads=4, num_kv_heads=2)
+        params = gqa.parameters()
+        assert len(params) >= 4
+
+    def test_is_module(self):
+        assert isinstance(GroupedQueryAttention(16, 4, 2), Module)
+
+    def test_backward(self):
+        gqa = GroupedQueryAttention(embed_dim=8, num_heads=4, num_kv_heads=2)
+        x = Tensor(np.random.randn(1, 3, 8).astype(np.float32), requires_grad=True)
+        result = gqa(x)
+        result.sum().backward()
+        assert x.grad is not None
+
+    def test_causal(self):
+        gqa = GroupedQueryAttention(embed_dim=8, num_heads=4, num_kv_heads=2, causal=True)
+        x = Tensor(np.random.randn(1, 4, 8).astype(np.float32))
+        result = gqa(x)
+        assert result.shape == (1, 4, 8)
