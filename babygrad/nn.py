@@ -113,6 +113,10 @@ class Module:
                             state[f"{key}.{i}.{child_key}"] = v
         return state
 
+    def save(self, filename):
+        """Save model state to an npz file."""
+        np.savez(filename, **self.state_dict())
+
 
 class ReLU(Module):
     """Applies ReLU element-wise."""

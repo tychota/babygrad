@@ -1259,3 +1259,19 @@ class TestModuleStateDict:
         assert "bias" in sd
         assert "running_mean" in sd
         assert "running_var" in sd
+
+    def test_save_creates_npz_file(self, tmp_path):
+        """save() writes an npz file to disk."""
+        layer = Linear(3, 5)
+        path = tmp_path / "model.npz"
+        layer.save(str(path))
+        assert (tmp_path / "model.npz").exists()
+
+    def test_save_npz_contains_state_dict_keys(self, tmp_path):
+        """Saved npz file contains the same keys as state_dict."""
+        layer = Linear(3, 5)
+        path = tmp_path / "model.npz"
+        layer.save(str(path))
+        loaded = np.load(str(path))
+        sd = layer.state_dict()
+        assert set(loaded.files) == set(sd.keys())
