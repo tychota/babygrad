@@ -65,3 +65,19 @@ def clip_grad_norm(params, max_norm):
             if p.grad is not None:
                 p.grad = p.grad * scale
     return total_norm
+
+
+class CosineScheduler:
+    """Cosine annealing with linear warmup."""
+    def __init__(self, max_lr: float, min_lr: float, warmup_steps: int, total_steps: int):
+        self.max_lr = max_lr
+        self.min_lr = min_lr
+        self.warmup_steps = warmup_steps
+        self.total_steps = total_steps
+
+    def get_lr(self, step: int) -> float:
+        if step < self.warmup_steps:
+            return self.max_lr * step / self.warmup_steps
+        decay_steps = self.total_steps - self.warmup_steps
+        progress = (step - self.warmup_steps) / decay_steps if decay_steps > 0 else 1.0
+        return self.min_lr + 0.5 * (self.max_lr - self.min_lr) * (1 + np.cos(np.pi * progress))

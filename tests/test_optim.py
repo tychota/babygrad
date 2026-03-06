@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 from babygrad import Tensor
-from babygrad.optim import Optimizer, SGD, Adam, clip_grad_norm
+from babygrad.optim import Optimizer, SGD, Adam, clip_grad_norm, CosineScheduler
 from babygrad.nn import Parameter
 
 
@@ -272,3 +272,24 @@ class TestClipGradNorm:
         p.grad = np.array([3.0, 4.0])
         norm = clip_grad_norm([p], max_norm=10.0)
         np.testing.assert_allclose(norm, 5.0, rtol=1e-5)
+
+
+# ── CosineScheduler ──
+
+
+class TestCosineScheduler:
+    def test_warmup_linear(self):
+        sched = CosineScheduler(max_lr=1.0, min_lr=0.0, warmup_steps=10, total_steps=100)
+        assert sched.get_lr(0) == pytest.approx(0.0, abs=1e-5)
+        assert sched.get_lr(5) == pytest.approx(0.5, abs=1e-5)
+        assert sched.get_lr(10) == pytest.approx(1.0, abs=1e-5)
+
+    def test_cosine_decay(self):
+        sched = CosineScheduler(max_lr=1.0, min_lr=0.0, warmup_steps=0, total_steps=100)
+        assert sched.get_lr(0) == pytest.approx(1.0, abs=1e-5)
+        assert sched.get_lr(100) == pytest.approx(0.0, abs=1e-2)
+        assert sched.get_lr(50) == pytest.approx(0.5, abs=0.05)
+
+    def test_min_lr_floor(self):
+        sched = CosineScheduler(max_lr=1.0, min_lr=0.1, warmup_steps=0, total_steps=100)
+        assert sched.get_lr(100) >= 0.1
