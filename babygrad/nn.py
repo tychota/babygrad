@@ -521,3 +521,68 @@ class GroupedQueryAttention(Module):
         out = attn @ v
         out = out.transpose((0, 2, 1, 3)).reshape(B, L, D)
         return self.out_proj(out)
+
+
+class TransformerBlock(Module):
+    """Pre-norm transformer block: norm -> attention -> residual -> norm -> FFN -> residual."""
+    def __init__(self, embed_dim: int, num_heads: int, ff_dim: int,
+                 norm: str = "layernorm", ff: str = "gelu",
+                 dropout: float = 0.0, causal: bool = False):
+        super().__init__()
+        self.attn_norm = RMSNorm(embed_dim) if norm == "rmsnorm" else LayerNorm1d(embed_dim)
+        self.attn = MultiHeadAttention(embed_dim, num_heads, dropout=dropout, causal=causal)
+        self.ff_norm = RMSNorm(embed_dim) if norm == "rmsnorm" else LayerNorm1d(embed_dim)
+
+        if ff == "swiglu":
+            self.ff = SwiGLU(embed_dim, ff_dim)
+        else:
+            self.ff = Sequential(
+                Linear(embed_dim, ff_dim),
+                GELU(),
+                Linear(ff_dim, embed_dim),
+            )
+        self.dropout = Dropout(dropout)
+
+    def forward(self, x: Tensor) -> Tensor:
+        B, L, D = x.shape
+        # Attention block with residual
+        normed = self.attn_norm(x.reshape(B * L, D)).reshape(B, L, D)
+        x = x + self.dropout(self.attn(normed))
+        # FFN block with residual
+        normed = self.ff_norm(x.reshape(B * L, D)).reshape(B, L, D)
+        x = x + self.dropout(self.ff(normed.reshape(B * L, D)).reshape(B, L, D))
+        return x
+
+
+class Transformer(Module):
+    """Full transformer: embedding -> N blocks -> norm -> output projection."""
+    def __init__(self, vocab_size: int, embed_dim: int, num_heads: int,
+                 ff_dim: int, num_layers: int, max_seq_len: int,
+                 norm: str = "layernorm", ff: str = "gelu",
+                 dropout: float = 0.0, causal: bool = True):
+        super().__init__()
+        self.vocab_size = vocab_size
+        self.token_emb = Embedding(vocab_size, embed_dim)
+        self.pos_emb = Embedding(max_seq_len, embed_dim)
+        self.blocks = [
+            TransformerBlock(embed_dim, num_heads, ff_dim, norm=norm,
+                           ff=ff, dropout=dropout, causal=causal)
+            for _ in range(num_layers)
+        ]
+        self.norm = RMSNorm(embed_dim) if norm == "rmsnorm" else LayerNorm1d(embed_dim)
+        self.output = Linear(embed_dim, vocab_size, bias=False)
+
+    def forward(self, x: Tensor) -> Tensor:
+        B, L = x.shape
+        positions = Tensor(np.arange(L))
+        tok = self.token_emb(x)        # (B, L, D)
+        pos = self.pos_emb(positions)   # (L, D)
+        # Broadcast pos to (B, L, D)
+        h = tok + pos.reshape(1, L, tok.shape[2]).broadcast_to(tok.shape)
+
+        for block in self.blocks:
+            h = block(h)
+
+        D = h.shape[2]
+        h = self.norm(h.reshape(B * L, D)).reshape(B, L, D)
+        return self.output(h.reshape(B * L, D)).reshape(B, L, self.vocab_size)

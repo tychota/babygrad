@@ -7,7 +7,7 @@ from babygrad.nn import (
     Sequential, Residual, Dropout, LayerNorm1d, BatchNorm1d,
     MSELoss, SoftmaxLoss, CrossEntropyLoss,
     Embedding, RMSNorm, SwiGLU, MultiHeadAttention, RotaryPositionEmbedding,
-    GroupedQueryAttention,
+    GroupedQueryAttention, TransformerBlock, Transformer,
 )
 
 
@@ -1080,3 +1080,48 @@ class TestGroupedQueryAttention:
         x = Tensor(np.random.randn(1, 4, 8).astype(np.float32))
         result = gqa(x)
         assert result.shape == (1, 4, 8)
+
+
+class TestTransformerBlock:
+    def test_output_shape(self):
+        block = TransformerBlock(embed_dim=32, num_heads=4, ff_dim=64)
+        x = Tensor(np.random.randn(2, 10, 32).astype(np.float32))
+        result = block(x)
+        assert result.shape == (2, 10, 32)
+
+    def test_is_module(self):
+        assert isinstance(TransformerBlock(16, 4, 32), Module)
+
+    def test_has_parameters(self):
+        block = TransformerBlock(embed_dim=16, num_heads=4, ff_dim=32)
+        params = block.parameters()
+        assert len(params) > 0
+
+    def test_backward(self):
+        block = TransformerBlock(embed_dim=8, num_heads=2, ff_dim=16)
+        x = Tensor(np.random.randn(1, 3, 8).astype(np.float32), requires_grad=True)
+        result = block(x)
+        result.sum().backward()
+        assert x.grad is not None
+
+
+class TestTransformer:
+    def test_output_shape(self):
+        model = Transformer(vocab_size=100, embed_dim=32, num_heads=4,
+                           ff_dim=64, num_layers=2, max_seq_len=128)
+        x = Tensor([[1, 2, 3, 4]])
+        result = model(x)
+        assert result.shape == (1, 4, 100)  # (batch, seq_len, vocab_size)
+
+    def test_is_module(self):
+        model = Transformer(100, 16, 4, 32, 2, 64)
+        assert isinstance(model, Module)
+
+    def test_backward(self):
+        model = Transformer(vocab_size=50, embed_dim=8, num_heads=2,
+                           ff_dim=16, num_layers=1, max_seq_len=32)
+        x = Tensor([[1, 2, 3]])
+        result = model(x)
+        result.sum().backward()
+        params = model.parameters()
+        assert any(p.grad is not None for p in params)
