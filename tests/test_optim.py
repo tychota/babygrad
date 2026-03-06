@@ -293,3 +293,85 @@ class TestCosineScheduler:
     def test_min_lr_floor(self):
         sched = CosineScheduler(max_lr=1.0, min_lr=0.1, warmup_steps=0, total_steps=100)
         assert sched.get_lr(100) >= 0.1
+
+
+# ── Optimizer State Dict ──
+
+
+class TestOptimizerStateDict:
+    """Tests for Optimizer state persistence."""
+
+    def test_sgd_state_dict_empty(self):
+        """SGD has no internal state beyond params."""
+        p = Parameter(Tensor([1.0, 2.0]))
+        opt = SGD([p], lr=0.01)
+        sd = opt.state_dict()
+        assert sd == {}
+
+    def test_adam_state_dict_after_step(self):
+        """Adam state_dict contains t, m, and v after a step."""
+        p = Parameter(Tensor([1.0, 2.0]))
+        p.grad = np.array([0.1, 0.2])
+        opt = Adam([p], lr=0.001)
+        opt.step()
+        sd = opt.state_dict()
+        assert sd["t"] == 1
+        assert "m_0" in sd
+        assert "v_0" in sd
+
+    def test_adam_load_state_dict_restores_state(self):
+        """Adam load_state_dict restores momentum and velocity."""
+        p = Parameter(Tensor([1.0, 2.0]))
+        p.grad = np.array([0.1, 0.2])
+        opt = Adam([p], lr=0.001)
+        opt.step()
+        opt.step()
+        sd = opt.state_dict()
+
+        # Fresh optimizer
+        p2 = Parameter(Tensor([1.0, 2.0]))
+        opt2 = Adam([p2], lr=0.001)
+        opt2.load_state_dict(sd)
+
+        assert opt2.t == sd["t"]
+        np.testing.assert_array_equal(opt2.m[p2], sd["m_0"])
+        np.testing.assert_array_equal(opt2.v[p2], sd["v_0"])
+
+    def test_adam_save_load_roundtrip(self, tmp_path):
+        """Full round-trip: save then load restores optimizer state."""
+        p = Parameter(Tensor([1.0, 2.0, 3.0]))
+        p.grad = np.array([0.1, 0.2, 0.3])
+        opt = Adam([p], lr=0.001)
+        opt.step()
+        opt.step()
+
+        path = tmp_path / "optim.npz"
+        opt.save(str(path))
+
+        p2 = Parameter(Tensor([1.0, 2.0, 3.0]))
+        opt2 = Adam([p2], lr=0.001)
+        opt2.load(str(path))
+
+        assert opt2.t == 2
+        np.testing.assert_array_almost_equal(opt2.m[p2], opt.m[p])
+        np.testing.assert_array_almost_equal(opt2.v[p2], opt.v[p])
+
+    def test_adam_continued_training_after_load(self, tmp_path):
+        """After loading, optimizer continues training correctly."""
+        p1 = Parameter(Tensor([1.0, 2.0]))
+        p1.grad = np.array([0.5, 0.5])
+        opt1 = Adam([p1], lr=0.001)
+        opt1.step()
+        sd = opt1.state_dict()
+
+        # Fresh optimizer with same param data as p1 after step 1
+        p2 = Parameter(Tensor(p1.data.copy()))
+        opt2 = Adam([p2], lr=0.001)
+        opt2.load_state_dict(sd)
+
+        # Both take the same next step
+        p1.grad = np.array([0.3, 0.3])
+        p2.grad = np.array([0.3, 0.3])
+        opt1.step()
+        opt2.step()
+        np.testing.assert_array_almost_equal(p1.data, p2.data)

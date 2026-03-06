@@ -12,6 +12,29 @@ class Optimizer:
     def step(self):
         raise NotImplementedError
 
+    def state_dict(self):
+        """Return optimizer state as a dict of numpy arrays."""
+        return {}
+
+    def load_state_dict(self, state_dict):
+        """Load optimizer state from a dict."""
+        pass
+
+    def save(self, filename):
+        """Save optimizer state to an npz file."""
+        sd = self.state_dict()
+        if sd:
+            np.savez(filename, **{k: np.array(v) for k, v in sd.items()})
+
+    def load(self, filename):
+        """Load optimizer state from an npz file."""
+        data = np.load(filename)
+        loaded = {}
+        for k in data.files:
+            v = data[k]
+            loaded[k] = int(v) if v.ndim == 0 else v
+        self.load_state_dict(loaded)
+
 
 class SGD(Optimizer):
     def __init__(self, params, lr=0.01):
@@ -50,6 +73,23 @@ class Adam(Optimizer):
                 mt_hat = mt / (1 - self.beta1 ** self.t)
                 vt_hat = vt / (1 - self.beta2 ** self.t)
                 param.data -= self.lr * mt_hat / (vt_hat ** 0.5 + self.eps)
+
+    def state_dict(self):
+        sd = {"t": self.t}
+        for i, param in enumerate(self.params):
+            if param in self.m:
+                sd[f"m_{i}"] = self.m[param]
+            if param in self.v:
+                sd[f"v_{i}"] = self.v[param]
+        return sd
+
+    def load_state_dict(self, state_dict):
+        self.t = state_dict["t"]
+        for i, param in enumerate(self.params):
+            if f"m_{i}" in state_dict:
+                self.m[param] = state_dict[f"m_{i}"]
+            if f"v_{i}" in state_dict:
+                self.v[param] = state_dict[f"v_{i}"]
 
 
 def clip_grad_norm(params, max_norm):
