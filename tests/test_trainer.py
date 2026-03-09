@@ -111,3 +111,93 @@ class TestTrainerFit:
         assert "Epoch 1/2" in captured
         assert "Epoch 2/2" in captured
         assert "Avg Loss:" in captured
+
+
+class TestTrainerEvaluate:
+    def test_evaluate_returns_zero_without_loader(self):
+        """evaluate() returns 0.0 when no val_loader is set."""
+        from babygrad.trainer import Trainer
+
+        model = SimpleModel(2, 3)
+        optimizer = SGD(model.parameters(), lr=0.01)
+        loss_fn = SoftmaxLoss()
+        train_loader = make_fake_loader()
+
+        trainer = Trainer(model, optimizer, loss_fn, train_loader)
+        assert trainer.evaluate() == 0.0
+
+    def test_evaluate_sets_model_to_eval_mode(self):
+        """evaluate() should call model.eval()."""
+        from babygrad.trainer import Trainer
+
+        model = SimpleModel(2, 3)
+        optimizer = SGD(model.parameters(), lr=0.01)
+        loss_fn = SoftmaxLoss()
+        val_loader = make_fake_loader(num_batches=1)
+
+        trainer = Trainer(model, optimizer, loss_fn, make_fake_loader(),
+                          val_loader=val_loader)
+        trainer.evaluate()
+
+        assert model.training is False
+
+    def test_evaluate_returns_accuracy(self):
+        """evaluate() should return correct/total as a float."""
+        from babygrad.trainer import Trainer
+
+        # Build a model that always predicts class 0 via large bias
+        model = SimpleModel(2, 3)
+        model.linear.weight.data = np.zeros((2, 3), dtype=np.float32)
+        model.linear.bias.data = np.array([[10.0, 0.0, 0.0]], dtype=np.float32)
+
+        optimizer = SGD(model.parameters(), lr=0.01)
+        loss_fn = SoftmaxLoss()
+
+        # All labels are 0 -> 100% accuracy
+        all_zero_loader = [
+            (Tensor(np.random.randn(4, 2).astype(np.float32)),
+             np.zeros(4, dtype=np.int64))
+            for _ in range(2)
+        ]
+
+        trainer = Trainer(model, optimizer, loss_fn, make_fake_loader(),
+                          val_loader=all_zero_loader)
+        acc = trainer.evaluate()
+        assert acc == 1.0
+
+    def test_evaluate_with_explicit_loader(self):
+        """evaluate(loader) should use the provided loader, not val_loader."""
+        from babygrad.trainer import Trainer
+
+        model = SimpleModel(2, 3)
+        model.linear.weight.data = np.zeros((2, 3), dtype=np.float32)
+        model.linear.bias.data = np.array([[10.0, 0.0, 0.0]], dtype=np.float32)
+
+        optimizer = SGD(model.parameters(), lr=0.01)
+        loss_fn = SoftmaxLoss()
+
+        explicit_loader = [
+            (Tensor(np.random.randn(4, 2).astype(np.float32)),
+             np.zeros(4, dtype=np.int64))
+        ]
+
+        trainer = Trainer(model, optimizer, loss_fn, make_fake_loader())
+        acc = trainer.evaluate(loader=explicit_loader)
+        assert acc == 1.0
+
+    def test_fit_prints_val_accuracy_when_val_loader_set(self, capsys):
+        """fit() should print val accuracy when val_loader is provided."""
+        from babygrad.trainer import Trainer
+
+        model = SimpleModel(2, 3)
+        optimizer = SGD(model.parameters(), lr=0.01)
+        loss_fn = SoftmaxLoss()
+        train_loader = make_fake_loader(num_batches=1)
+        val_loader = make_fake_loader(num_batches=1)
+
+        trainer = Trainer(model, optimizer, loss_fn, train_loader,
+                          val_loader=val_loader)
+        trainer.fit(1)
+
+        captured = capsys.readouterr().out
+        assert "Val Acc:" in captured

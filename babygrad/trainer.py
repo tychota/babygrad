@@ -33,3 +33,21 @@ class Trainer:
                 print(f" | Val Acc: {val_acc * 100:.2f}%")
             else:
                 print()
+
+    def evaluate(self, loader=None):
+        target_loader = loader if loader is not None else self.val_loader
+        if target_loader is None:
+            return 0.0
+
+        self.model.eval()
+        correct = 0
+        total = 0
+
+        for x, y in target_loader:
+            logits = self.model(x)
+            preds = logits.data.argmax(axis=1)
+            y_np = y.data if isinstance(y, Tensor) else y
+            correct += (preds == y_np).sum()
+            total += y_np.shape[0]
+
+        return correct / total

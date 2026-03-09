@@ -10,6 +10,7 @@ from babygrad.nn import (
 )
 from babygrad.optim import Optimizer, SGD, Adam, clip_grad_norm, CosineScheduler
 from babygrad.data import Dataset, MNISTDataset, DataLoader, parse_mnist
+from babygrad.trainer import Trainer
 
 __all__ = [
     "Tensor", "Parameter", "Module",
@@ -22,4 +23,5 @@ __all__ = [
     "RotaryPositionEmbedding", "TransformerBlock", "Transformer",
     "Optimizer", "SGD", "Adam", "clip_grad_norm", "CosineScheduler",
     "Dataset", "MNISTDataset", "DataLoader", "parse_mnist",
+    "Trainer",
 ]
