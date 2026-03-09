@@ -25,6 +25,12 @@ class Tensor:
         self._inputs = []
         self._device = device if device else "cpu"
 
+    def __array__(self, dtype=None, copy=None):
+        arr = self.data if dtype is None else self.data.astype(dtype)
+        if copy:
+            arr = arr.copy()
+        return arr
+
     def __repr__(self):
         return f"Tensor({self.data}, requires_grad={self.requires_grad})"
 

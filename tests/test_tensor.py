@@ -204,6 +204,34 @@ class TestTensorNumpy:
         np.testing.assert_array_equal(t.numpy(), t.data)
 
 
+class TestTensorNumpyInterop:
+    """Tests for numpy interop via __array__ protocol."""
+
+    def test_np_array_returns_ndarray(self):
+        """np.array(tensor) should return a proper ndarray, not an object array."""
+        t = Tensor([1.0, 2.0, 3.0])
+        result = np.array(t)
+        assert result.dtype == np.float32
+        np.testing.assert_array_equal(result, [1.0, 2.0, 3.0])
+
+    def test_np_array_2d(self):
+        """np.array(tensor) works with 2D tensors."""
+        t = Tensor([[1, 2], [3, 4]])
+        result = np.array(t)
+        assert result.shape == (2, 2)
+        np.testing.assert_array_equal(result, [[1, 2], [3, 4]])
+
+    def test_softmax_loss_accepts_tensor_labels(self):
+        """SoftmaxLoss should work when y is a Tensor of integer labels."""
+        from babygrad.nn import SoftmaxLoss
+        loss_fn = SoftmaxLoss()
+        logits = Tensor(np.random.randn(4, 3).astype(np.float32))
+        y = Tensor(np.array([0, 1, 2, 1]))
+        loss = loss_fn(logits, y)
+        assert loss.data.shape == ()
+        assert np.isfinite(loss.data)
+
+
 class TestTensorDetach:
     """Tests for Tensor.detach() method."""
 
