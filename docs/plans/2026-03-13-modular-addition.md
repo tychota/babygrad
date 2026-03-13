@@ -2,30 +2,30 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** A readable example that trains a 1-layer Transformer to learn (A + B) % 113 and demonstrates grokking.
+**Goal:** A readable example that trains a 1-layer Transformer to learn (A + B) % 113 and demonstrates grokking, using the Trainer with `compute_metrics`.
 
-**Architecture:** Custom Dataset yields `([A, B, =], [-1, -1, C])` pairs. DataLoader batches them. Manual training loop with CrossEntropyLoss(ignore_index=-1). Evaluation checks argmax of last position.
+**Architecture:** Custom Dataset yields `([A, B, =], [-1, -1, C])` pairs. DataLoader batches them. Trainer handles the training loop with CrossEntropyLoss(ignore_index=-1). Custom `compute_metrics` callback evaluates accuracy on the answer position (last token).
 
-**Tech Stack:** babygrad (Tensor, Transformer, CrossEntropyLoss, Adam, Dataset, DataLoader)
+**Tech Stack:** babygrad (Tensor, Transformer, CrossEntropyLoss, Adam, Dataset, DataLoader, Trainer)
 
 ---
 
-### Task 1: ModularAdditionDataset
+### Task 1: Create the example script
 
 **Files:**
 - Create: `examples/modular_addition.py`
 
-**Step 1: Write the dataset class and a quick smoke test at the bottom**
+**Step 1: Write the full example**
 
 ```python
 """
-Modular Addition with a Transformer
-====================================
+Modular Addition with a Transformer (Grokking)
+================================================
 Train a single-layer Transformer to learn (A + B) % 113.
 
 This demonstrates the "grokking" phenomenon: the model memorizes the
-training set quickly (train accuracy → 100%) but takes much longer to
-generalize (test accuracy → 100%).
+training set quickly (train accuracy -> 100%) but takes much longer to
+generalize (test accuracy -> 100%).
 
 Vocabulary: 0-112 = numbers, 113 = "=" token
 Input:  [A, B, =]   (3 tokens)
@@ -34,25 +34,28 @@ Target: [-1, -1, C]  (loss only on answer position, C = (A+B) % 113)
 
 import numpy as np
 from babygrad import (
-    Tensor, Transformer, CrossEntropyLoss, Adam, Dataset, DataLoader,
+    Tensor, Transformer, CrossEntropyLoss, Adam, Dataset, DataLoader, Trainer,
 )
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+P = 113            # prime modulus
+EQ_TOKEN = P       # "=" token has id 113
+VOCAB_SIZE = P + 1 # 0..112 + "="
+SEQ_LEN = 3       # [A, B, =]
+IGNORE = -1        # ignore index for loss
 
 # ---------------------------------------------------------------------------
 # Dataset
 # ---------------------------------------------------------------------------
 
-P = 113          # prime modulus
-EQ_TOKEN = P     # "=" token has id 113
-VOCAB_SIZE = P + 1  # 0..112 + "="
-SEQ_LEN = 3     # [A, B, =]
-IGNORE = -1      # ignore index for loss
-
 class ModularAdditionDataset(Dataset):
-    """All (A + B) % P pairs for given indices."""
+    """All (A + B) % P pairs for given indices into the P*P grid."""
 
     def __init__(self, indices):
         super().__init__()
-        # indices into the flattened P*P grid
         self.pairs = [(i // P, i % P) for i in indices]
 
     def __getitem__(self, index):
@@ -64,19 +67,16 @@ class ModularAdditionDataset(Dataset):
 
     def __len__(self):
         return len(self.pairs)
-```
 
-**Step 2: Add data splitting, model, and training loop**
-
-```python
 # ---------------------------------------------------------------------------
 # Data split: 75% train, 25% test
 # ---------------------------------------------------------------------------
 
 np.random.seed(42)
-all_indices = np.arange(P * P)              # 12,769 pairs
+all_indices = np.arange(P * P)                # 12,769 pairs
 np.random.shuffle(all_indices)
-split = int(0.75 * len(all_indices))         # 9,576 train
+split = int(0.75 * len(all_indices))           # 9,576 train
+
 train_ds = ModularAdditionDataset(all_indices[:split])
 test_ds  = ModularAdditionDataset(all_indices[split:])
 
@@ -103,64 +103,57 @@ optimizer = Adam(model.parameters(), lr=1e-3)
 loss_fn = CrossEntropyLoss(ignore_index=IGNORE)
 
 # ---------------------------------------------------------------------------
-# Evaluation: accuracy on the answer position only
+# Custom evaluation: accuracy on the answer position only
 # ---------------------------------------------------------------------------
 
-def evaluate(model, loader):
-    """Return accuracy on the answer position (last token)."""
-    model.eval()
+def answer_accuracy(model, loader):
+    """Accuracy on the last position (the answer token)."""
     correct = 0
     total = 0
     for x, y in loader:
-        logits = model(x)                        # (B, 3, vocab)
-        preds = logits.data[:, -1, :].argmax(axis=-1)  # last position
+        logits = model(x)                             # (B, 3, vocab)
+        preds = logits.data[:, -1, :].argmax(axis=-1) # last position
         targets = np.array(y)[:, -1].astype(int)
         correct += (preds == targets).sum()
         total += targets.shape[0]
     return correct / total
 
 # ---------------------------------------------------------------------------
-# Training loop
+# Training with Trainer
 # ---------------------------------------------------------------------------
 
+trainer = Trainer(
+    model=model,
+    optimizer=optimizer,
+    loss_fn=loss_fn,
+    train_loader=train_loader,
+    val_loader=test_loader,
+    compute_metrics=answer_accuracy,
+)
+
 EPOCHS = 5000
-print(f"\nTraining for up to {EPOCHS} epochs...")
-print(f"{'Epoch':>6} | {'Loss':>10} | {'Train Acc':>10} | {'Test Acc':>10}")
-print("-" * 50)
+print(f"\nTraining for up to {EPOCHS} epochs...\n")
 
 for epoch in range(1, EPOCHS + 1):
-    model.train()
-    total_loss = 0
-    num_batches = 0
+    trainer.fit(1)
 
-    for x, y in train_loader:
-        optimizer.zero_grad()
-        logits = model(x)
-        loss = loss_fn(logits, y)
-        loss.backward()
-        optimizer.step()
-        total_loss += loss.data
-        num_batches += 1
-
-    # Log every 100 epochs (or first 10)
+    # Detailed logging every 100 epochs (or first 10)
     if epoch <= 10 or epoch % 100 == 0:
-        avg_loss = total_loss / num_batches
-        train_acc = evaluate(model, train_loader)
-        test_acc  = evaluate(model, test_loader)
-        print(f"{epoch:>6} | {avg_loss:>10.4f} | {train_acc*100:>9.2f}% | {test_acc*100:>9.2f}%")
+        train_acc = trainer.evaluate(loader=train_loader)
+        test_acc  = trainer.evaluate(loader=test_loader)
+        print(f"  -> Train Acc: {train_acc*100:.2f}% | Test Acc: {test_acc*100:.2f}%")
 
-        # Early stop if both reach 100%
         if train_acc > 0.99 and test_acc > 0.99:
             print(f"\nGrokking achieved at epoch {epoch}!")
             break
 ```
 
-**Step 3: Run it**
+**Step 2: Smoke test (2-3 epochs)**
 
 Run: `uv run python examples/modular_addition.py`
-Expected: Starts printing epoch/loss/accuracy table. Train acc rises fast, test acc rises later.
+Expected: Starts printing epoch/loss/accuracy. Loss decreases. Accuracy starts near ~1% (random = 1/113).
 
-**Step 4: Commit**
+**Step 3: Commit**
 
 ```bash
 git add examples/modular_addition.py
@@ -172,9 +165,9 @@ git commit -m "Add modular addition grokking example"
 **Step 1: Run the full training**
 
 Run: `uv run python examples/modular_addition.py`
-Expected: Test accuracy eventually reaches ~100%.
+Expected: Train accuracy reaches ~100% relatively quickly. Test accuracy eventually reaches ~100% (grokking).
 
-If it doesn't converge:
+If it doesn't converge after ~5000 epochs:
 - Try weight decay (add to Adam if not supported)
 - Try lr=3e-4
 - Try more epochs
