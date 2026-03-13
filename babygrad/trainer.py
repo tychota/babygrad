@@ -2,12 +2,14 @@ from babygrad.tensor import Tensor
 
 
 class Trainer:
-    def __init__(self, model, optimizer, loss_fn, train_loader, val_loader=None):
+    def __init__(self, model, optimizer, loss_fn, train_loader, val_loader=None,
+                 compute_metrics=None):
         self.model = model
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.train_loader = train_loader
         self.val_loader = val_loader
+        self.compute_metrics = compute_metrics
 
     def fit(self, epochs: int):
         for epoch in range(epochs):
@@ -40,6 +42,10 @@ class Trainer:
             return 0.0
 
         self.model.eval()
+
+        if self.compute_metrics is not None:
+            return self.compute_metrics(self.model, target_loader)
+
         correct = 0
         total = 0
 

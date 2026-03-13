@@ -201,3 +201,96 @@ class TestTrainerEvaluate:
 
         captured = capsys.readouterr().out
         assert "Val Acc:" in captured
+
+
+class TestTrainerComputeMetrics:
+    def test_compute_metrics_stored(self):
+        """Trainer should store compute_metrics callback."""
+        from babygrad.trainer import Trainer
+
+        def my_metrics(model, loader):
+            return 0.5
+
+        model = SimpleModel(2, 3)
+        optimizer = SGD(model.parameters(), lr=0.01)
+        loss_fn = SoftmaxLoss()
+
+        trainer = Trainer(model, optimizer, loss_fn, make_fake_loader(),
+                          compute_metrics=my_metrics)
+        assert trainer.compute_metrics is my_metrics
+
+    def test_compute_metrics_defaults_to_none(self):
+        """compute_metrics should default to None."""
+        from babygrad.trainer import Trainer
+
+        model = SimpleModel(2, 3)
+        optimizer = SGD(model.parameters(), lr=0.01)
+        loss_fn = SoftmaxLoss()
+
+        trainer = Trainer(model, optimizer, loss_fn, make_fake_loader())
+        assert trainer.compute_metrics is None
+
+    def test_evaluate_uses_compute_metrics_when_provided(self):
+        """evaluate() should call compute_metrics instead of default logic."""
+        from babygrad.trainer import Trainer
+
+        call_log = []
+
+        def custom_metrics(model, loader):
+            call_log.append((model, loader))
+            return 0.42
+
+        model = SimpleModel(2, 3)
+        optimizer = SGD(model.parameters(), lr=0.01)
+        loss_fn = SoftmaxLoss()
+        val_loader = make_fake_loader(num_batches=1)
+
+        trainer = Trainer(model, optimizer, loss_fn, make_fake_loader(),
+                          val_loader=val_loader, compute_metrics=custom_metrics)
+        result = trainer.evaluate()
+
+        assert result == 0.42
+        assert len(call_log) == 1
+        assert call_log[0][0] is model
+        assert call_log[0][1] is val_loader
+
+    def test_evaluate_passes_explicit_loader_to_compute_metrics(self):
+        """evaluate(loader) should pass the explicit loader to compute_metrics."""
+        from babygrad.trainer import Trainer
+
+        received_loader = []
+
+        def custom_metrics(model, loader):
+            received_loader.append(loader)
+            return 0.99
+
+        model = SimpleModel(2, 3)
+        optimizer = SGD(model.parameters(), lr=0.01)
+        loss_fn = SoftmaxLoss()
+        explicit_loader = make_fake_loader(num_batches=1)
+
+        trainer = Trainer(model, optimizer, loss_fn, make_fake_loader(),
+                          compute_metrics=custom_metrics)
+        result = trainer.evaluate(loader=explicit_loader)
+
+        assert result == 0.99
+        assert received_loader[0] is explicit_loader
+
+    def test_evaluate_still_sets_eval_mode_with_compute_metrics(self):
+        """evaluate() should set eval mode even when using compute_metrics."""
+        from babygrad.trainer import Trainer
+
+        def custom_metrics(model, loader):
+            return 0.5
+
+        model = SimpleModel(2, 3)
+        model.train()
+        optimizer = SGD(model.parameters(), lr=0.01)
+        loss_fn = SoftmaxLoss()
+        val_loader = make_fake_loader(num_batches=1)
+
+        trainer = Trainer(model, optimizer, loss_fn, make_fake_loader(),
+                          val_loader=val_loader, compute_metrics=custom_metrics)
+        trainer.evaluate()
+
+        assert model.training is False
