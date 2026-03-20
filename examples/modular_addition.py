@@ -14,7 +14,8 @@ Target: [-1, -1, C]  (loss only on answer position, C = (A+B) % 113)
 
 import numpy as np
 from babygrad import (
-    Tensor, Transformer, CrossEntropyLoss, Adam, Dataset, DataLoader, Trainer,
+    Tensor, Transformer, CrossEntropyLoss, AdamW, Dataset, DataLoader,
+    clip_grad_norm,
 )
 
 # ---------------------------------------------------------------------------
@@ -78,8 +79,9 @@ model = Transformer(
     num_layers=1,
     max_seq_len=SEQ_LEN,
     causal=True,
+    ff="swiglu",
 )
-optimizer = Adam(model.parameters(), lr=1e-3)
+optimizer = AdamW(model.parameters(), lr=5e-3, weight_decay=0.1)
 loss_fn = CrossEntropyLoss(ignore_index=IGNORE)
 
 # ---------------------------------------------------------------------------
@@ -99,28 +101,37 @@ def answer_accuracy(model, loader):
     return correct / total
 
 # ---------------------------------------------------------------------------
-# Training with Trainer (no val_loader to avoid auto-eval every epoch)
+# Training loop with gradient clipping
 # ---------------------------------------------------------------------------
 
-trainer = Trainer(
-    model=model,
-    optimizer=optimizer,
-    loss_fn=loss_fn,
-    train_loader=train_loader,
-    compute_metrics=answer_accuracy,
-)
-
-EPOCHS = 5000
+EPOCHS = 3000
 print(f"\nTraining for up to {EPOCHS} epochs...\n")
 
 for epoch in range(1, EPOCHS + 1):
-    trainer.fit(1)
+    model.train()
+    total_loss = 0
+    num_batches = 0
 
-    # Detailed logging every 100 epochs (or first 10)
+    for x, y in train_loader:
+        optimizer.zero_grad()
+        pred = model(x)
+        loss = loss_fn(pred, y)
+        loss.backward()
+        clip_grad_norm(model.parameters(), 1.0)
+        optimizer.step()
+
+        total_loss += loss.data
+        num_batches += 1
+
+    avg_loss = total_loss / num_batches
+
+    # Log every 100 epochs (or first 10)
     if epoch <= 10 or epoch % 100 == 0:
-        train_acc = trainer.evaluate(loader=train_loader)
-        test_acc  = trainer.evaluate(loader=test_loader)
-        print(f"  -> Train Acc: {train_acc*100:.2f}% | Test Acc: {test_acc*100:.2f}%")
+        model.eval()
+        train_acc = answer_accuracy(model, train_loader)
+        test_acc  = answer_accuracy(model, test_loader)
+        print(f"Epoch {epoch:5d} | Loss: {avg_loss:.4f} "
+              f"| Train Acc: {train_acc*100:.2f}% | Test Acc: {test_acc*100:.2f}%")
 
         if train_acc > 0.99 and test_acc > 0.99:
             print(f"\nGrokking achieved at epoch {epoch}!")
